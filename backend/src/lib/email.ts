@@ -3,6 +3,14 @@ import type { TierId } from './reminders';
 
 const FROM = 'PédiGuide <onboarding@resend.dev>';
 
+function isDevMode(): boolean {
+  return process.env.EMAIL_DEV_MODE === 'true';
+}
+
+function logDevEmail(label: string, to: string, subject: string) {
+  console.log(`📧 [EMAIL_DEV_MODE] ${label} → ${to} | subject: "${subject}" (not sent — Resend bypassed)`);
+}
+
 interface SendFormLinkParams {
   to: string;
   patientFirstName?: string | null;
@@ -55,11 +63,18 @@ function getClient(): Resend {
 }
 
 export async function sendFormLinkEmail({ to, patientFirstName, formUrl }: SendFormLinkParams) {
+  const subject = 'Préparez votre consultation — PédiGuide';
+
+  if (isDevMode()) {
+    logDevEmail('form-link', to, subject);
+    return;
+  }
+
   const resend = getClient();
   const { error } = await resend.emails.send({
     from: FROM,
     to,
-    subject: 'Préparez votre consultation — PédiGuide',
+    subject,
     html: renderHtml(
       'Votre médecin vous invite à remplir un questionnaire de pré-consultation avant votre rendez-vous. Cela prend environ 3 minutes.',
       patientFirstName,
@@ -72,8 +87,14 @@ export async function sendFormLinkEmail({ to, patientFirstName, formUrl }: SendF
 }
 
 export async function sendReminderEmail({ to, patientFirstName, formUrl, tier }: SendReminderParams) {
-  const resend = getClient();
   const { subject, intro } = COPY[tier];
+
+  if (isDevMode()) {
+    logDevEmail(`reminder ${tier}`, to, subject);
+    return;
+  }
+
+  const resend = getClient();
   const { error } = await resend.emails.send({
     from: FROM,
     to,
