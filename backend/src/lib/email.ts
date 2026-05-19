@@ -56,7 +56,7 @@ function getClient(): Resend {
 
 export async function sendFormLinkEmail({ to, patientFirstName, formUrl }: SendFormLinkParams) {
   const resend = getClient();
-  await resend.emails.send({
+  const { error } = await resend.emails.send({
     from: FROM,
     to,
     subject: 'Préparez votre consultation — PédiGuide',
@@ -66,15 +66,21 @@ export async function sendFormLinkEmail({ to, patientFirstName, formUrl }: SendF
       formUrl,
     ),
   });
+  if (error) {
+    throw new Error(`Resend rejected the email: ${error.message ?? JSON.stringify(error)}`);
+  }
 }
 
 export async function sendReminderEmail({ to, patientFirstName, formUrl, tier }: SendReminderParams) {
   const resend = getClient();
   const { subject, intro } = COPY[tier];
-  await resend.emails.send({
+  const { error } = await resend.emails.send({
     from: FROM,
     to,
     subject,
     html: renderHtml(intro, patientFirstName, formUrl),
   });
+  if (error) {
+    throw new Error(`Resend rejected the reminder email: ${error.message ?? JSON.stringify(error)}`);
+  }
 }
