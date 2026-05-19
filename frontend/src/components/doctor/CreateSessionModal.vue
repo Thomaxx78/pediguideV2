@@ -15,7 +15,14 @@ const emailError = ref('')
 
 const patientFirstName = ref('')
 const patientEmail = ref('')
+const appointmentAt = ref('')
 const selectedTemplateId = ref<string | null>(null)
+
+// min datetime-local value = now (forbid past appointments at the input level)
+const minAppointmentAt = (() => {
+  const now = new Date(Date.now() - new Date().getTimezoneOffset() * 60_000)
+  return now.toISOString().slice(0, 16)
+})()
 
 interface Template { id: string; title: string }
 const templates = ref<Template[]>([])
@@ -39,6 +46,7 @@ const open = () => {
   sessionId.value = ''
   patientFirstName.value = ''
   patientEmail.value = ''
+  appointmentAt.value = ''
   selectedTemplateId.value = null
   error.value = ''
   emailError.value = ''
@@ -51,6 +59,12 @@ const close = () => { isOpen.value = false }
 
 const createSession = async () => {
   error.value = ''
+
+  if (patientEmail.value && !appointmentAt.value) {
+    error.value = 'La date de rendez-vous est obligatoire dès qu\'un email patient est renseigné (sinon impossible d\'envoyer les relances).'
+    return
+  }
+
   isLoading.value = true
   try {
     const token = localStorage.getItem('authToken')
@@ -61,6 +75,7 @@ const createSession = async () => {
         patientFirstName: patientFirstName.value || undefined,
         patientEmail: patientEmail.value || undefined,
         formTemplateId: selectedTemplateId.value || undefined,
+        appointmentAt: appointmentAt.value ? new Date(appointmentAt.value).toISOString() : undefined,
       }),
     })
     const data = await res.json()
@@ -124,6 +139,23 @@ const sendEmail = async () => {
             <Field>
               <FieldLabel for="patient-email">Email du parent <span class="text-muted-foreground">(optionnel)</span></FieldLabel>
               <Input id="patient-email" v-model="patientEmail" type="email" placeholder="parent@exemple.fr" autocomplete="off" />
+            </Field>
+            <Field>
+              <FieldLabel for="appointment-at">
+                Date du rendez-vous
+                <span v-if="patientEmail" class="text-destructive">*</span>
+                <span v-else class="text-muted-foreground">(optionnel)</span>
+              </FieldLabel>
+              <Input
+                id="appointment-at"
+                v-model="appointmentAt"
+                type="datetime-local"
+                :min="minAppointmentAt"
+                :required="!!patientEmail"
+              />
+              <p v-if="patientEmail" class="text-xs text-muted-foreground">
+                Active les relances automatiques (J-3, J-1, H-2).
+              </p>
             </Field>
             <Field>
               <FieldLabel for="template-select">Formulaire à utiliser</FieldLabel>

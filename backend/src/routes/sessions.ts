@@ -14,7 +14,25 @@ sessionsRouter.post('/', authenticateToken, async (req: AuthRequest, res: Respon
     const doctorId = req.user?.id;
     if (!doctorId) return res.status(401).json({ error: 'Non authentifié' });
 
-    const { patientEmail, patientFirstName, formTemplateId } = req.body;
+    const { patientEmail, patientFirstName, formTemplateId, appointmentAt } = req.body;
+
+    let appointmentDate: Date | null = null;
+    if (appointmentAt) {
+      const parsed = new Date(appointmentAt);
+      if (isNaN(parsed.getTime())) {
+        return res.status(400).json({ error: 'Date de rendez-vous invalide' });
+      }
+      if (parsed.getTime() <= Date.now()) {
+        return res.status(400).json({ error: 'La date de rendez-vous doit être dans le futur' });
+      }
+      appointmentDate = parsed;
+    }
+
+    if (patientEmail && !appointmentDate) {
+      return res.status(400).json({
+        error: 'La date de rendez-vous est obligatoire dès qu\'un email patient est renseigné (sinon les relances ne peuvent pas être envoyées).',
+      });
+    }
 
     const token = randomUUID();
     const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 jours
@@ -26,6 +44,7 @@ sessionsRouter.post('/', authenticateToken, async (req: AuthRequest, res: Respon
       patientFirstName: patientFirstName || null,
       formTemplateId: formTemplateId || null,
       expiresAt,
+      appointmentAt: appointmentDate,
     }).returning();
 
     const baseUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
