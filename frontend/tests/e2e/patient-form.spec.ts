@@ -46,7 +46,7 @@ test.describe('Parcours patient — formulaire pré-consultation', () => {
     await expect(page.getByText('Étape 3 sur 5')).toBeVisible();
   });
 
-  test('bouton Retour revient à l'étape précédente', async ({ page }) => {
+  test(`bouton Retour revient à l'étape précédente`, async ({ page }) => {
     await page.getByLabel(/prénom de l'enfant/i).fill('Jules');
     await page.getByLabel(/nom de l'enfant/i).fill('Bernard');
     await page.getByLabel(/date de naissance/i).fill('2021-01-10');

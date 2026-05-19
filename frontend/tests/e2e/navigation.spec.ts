@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test';
 
 test.describe('Navigation et pages publiques', () => {
-  test('la page d'accueil charge correctement', async ({ page }) => {
+  test(`la page d'accueil charge correctement`, async ({ page }) => {
     await page.goto('/');
     await expect(page).toHaveTitle(/pédigu/i);
     await expect(page.getByRole('heading', { name: /pédigu/i }).first()).toBeVisible();
