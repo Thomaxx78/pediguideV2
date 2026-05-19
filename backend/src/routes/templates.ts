@@ -10,7 +10,7 @@ export const templatesRouter = Router();
 // GET /api/templates — liste des templates du médecin
 templatesRouter.get('/', authenticateToken, async (req: AuthRequest, res: Response): Promise<any> => {
   try {
-    const doctorId = req.user?.id!;
+    const doctorId = req.user!.id;
     const list = await db.select().from(formTemplates)
       .where(eq(formTemplates.doctorId, doctorId))
       .orderBy(formTemplates.createdAt);
@@ -23,7 +23,7 @@ templatesRouter.get('/', authenticateToken, async (req: AuthRequest, res: Respon
 // GET /api/templates/:id — détail d'un template
 templatesRouter.get('/:id', authenticateToken, async (req: AuthRequest, res: Response): Promise<any> => {
   try {
-    const doctorId = req.user?.id!;
+    const doctorId = req.user!.id;
     const [template] = await db.select().from(formTemplates)
       .where(and(eq(formTemplates.id, req.params.id), eq(formTemplates.doctorId, doctorId)))
       .limit(1);
@@ -37,7 +37,7 @@ templatesRouter.get('/:id', authenticateToken, async (req: AuthRequest, res: Res
 // POST /api/templates — créer un template
 templatesRouter.post('/', authenticateToken, async (req: AuthRequest, res: Response): Promise<any> => {
   try {
-    const doctorId = req.user?.id!;
+    const doctorId = req.user!.id;
     const { title, description, questions, startFromDefault } = req.body;
 
     if (!title?.trim()) return res.status(400).json({ error: 'Titre requis' });
@@ -62,7 +62,7 @@ templatesRouter.post('/', authenticateToken, async (req: AuthRequest, res: Respo
 // PUT /api/templates/:id — modifier un template
 templatesRouter.put('/:id', authenticateToken, async (req: AuthRequest, res: Response): Promise<any> => {
   try {
-    const doctorId = req.user?.id!;
+    const doctorId = req.user!.id;
     const { title, description, questions, isActive } = req.body;
 
     const [existing] = await db.select({ id: formTemplates.id })
@@ -92,7 +92,7 @@ templatesRouter.put('/:id', authenticateToken, async (req: AuthRequest, res: Res
 // DELETE /api/templates/:id — supprimer un template
 templatesRouter.delete('/:id', authenticateToken, async (req: AuthRequest, res: Response): Promise<any> => {
   try {
-    const doctorId = req.user?.id!;
+    const doctorId = req.user!.id;
     const [existing] = await db.select({ id: formTemplates.id })
       .from(formTemplates)
       .where(and(eq(formTemplates.id, req.params.id), eq(formTemplates.doctorId, doctorId)))
