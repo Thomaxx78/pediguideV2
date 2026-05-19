@@ -1,0 +1,580 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&display=swap');
+@import "tailwindcss";
+@import "tw-animate-css";
+/*---break---*/
+@custom-variant dark (&:is(.dark *));
+
+html, body {
+  font-family: 'Inter', sans-serif;
+}
+
+@theme {
+  /* ══════════════════════════════════════════════════════════════════════════
+     TYPOGRAPHIE
+     ══════════════════════════════════════════════════════════════════════════ */
+
+  /* Display - Très grands titres pour hero sections, landing pages */
+  --text-display-2xl: 4.5rem;    /* 72px - Hero principal */
+  --text-display-xl: 3.75rem;    /* 60px - Hero secondaire */
+  --text-display-lg: 3rem;       /* 48px - Sections majeures */
+
+  /* Headings - Titres de contenu */
+  --text-h1: 2.25rem;            /* 36px - Titre de page */
+  --text-h2: 1.875rem;           /* 30px - Sections principales */
+  --text-h3: 1.5rem;             /* 24px - Sous-sections */
+  --text-h4: 1.25rem;            /* 20px - Titres de cards/blocs */
+  --text-h5: 1.125rem;           /* 18px - Titres mineurs */
+  --text-h6: 1rem;               /* 16px - Titres inline */
+
+  /* Body - Texte courant */
+  --text-body-lg: 0.875rem;     /* 14px - Texte important, intro */
+  --text-body: 0.75rem;          /* 12px - Texte standard */
+  --text-body-sm: 0.625rem;     /* 10px - Texte secondaire */
+
+  /* Small - Petits textes */
+  --text-small: 0.625rem;        /* 10px - Labels, métadonnées */
+  --text-tiny: 0.5rem;           /* 8px - Badges, indicateurs */
+
+  /* Line Heights associées */
+  --leading-tighter: 1.1;           /* Titres display */
+  --leading-tight: 1.2;             /* Headings serrés */
+  --leading-snug: 1.25;             /* Headings */
+  --leading-normal: 1.5;            /* Body text */
+  --leading-relaxed: 1.625;         /* Texte long, lisibilité accrue */
+  --leading-loose: 1.75;            /* Accessibilité, dyslexie */
+
+  /* Letter Spacing (tracking-*) */
+  --tracking-tighter: -0.05em;  /* Titres display */
+  --tracking-tight: -0.025em;   /* Headings */
+  --tracking-normal: 0;         /* Body */
+  --tracking-wide: 0.025em;     /* Boutons, labels uppercase */
+  --tracking-wider: 0.05em;     /* Petits textes uppercase */
+
+  /* ══════════════════════════════════════════════════════════════════════════
+     BREAKPOINTS CUSTOM
+     ══════════════════════════════════════════════════════════════════════════
+     Résolutions effectives courantes avec zoom 150% :
+     - 1920×1080 → 1280×720 (atteint xl)
+     - 1536×864  → 1024×576 (atteint lg)
+     - 1366×768  → 910×512  (atteint md)
+     ══════════════════════════════════════════════════════════════════════════ */
+  --breakpoint-sm: 640px;
+  --breakpoint-md: 768px;
+  --breakpoint-lg: 960px;   /* Réduit de 1024px pour couvrir plus de laptops zoomés */
+  --breakpoint-xl: 1200px;  /* Réduit de 1280px pour les écrans 1920px@150% */
+  --breakpoint-2xl: 1400px; /* Réduit de 1536px - plus accessible */
+
+  /* ══════════════════════════════════════════════════════════════════════════
+     PALETTE PEDIGUIDE
+     ══════════════════════════════════════════════════════════════════════════ */
+
+  /* BACKGROUND - #ffffff (Blanc Pur)
+     ─────────────────────────────────────────────────────────────────────────
+     Couleur de fond principale de l'application.
+     Usage : Body, fond de page, zones de contenu principal,
+             arrière-plan des modales et dialogs.
+  */
+  --color-bg: #F6F6EB;
+
+  /* TEXT - #1a1a2e (Noir Profond)
+     ─────────────────────────────────────────────────────────────────────────
+     Couleur de texte principale.
+     Usage : Titres, paragraphes, labels de formulaire,
+             tout contenu textuel principal.
+  */
+  --color-text: #182245;
+  --color-neutral: #E8E8E8;
+
+  /* TEXT-MUTED - #6b7280 (Gris Moyen)
+     ─────────────────────────────────────────────────────────────────────────
+     Couleur de texte secondaire/atténuée.
+     Usage : Textes d'aide, placeholders, légendes, métadonnées,
+             timestamps, textes moins importants.
+  */
+  --color-text-muted: color-mix(in srgb, var(--color-text) 70%, var(--color-neutral));
+
+  /* BRAND - #0e7490 (Turquoise Profond)
+     ─────────────────────────────────────────────────────────────────────────
+     Couleur principale de l'identité visuelle PEDIGUIDE.
+     Usage : Boutons principaux (CTA), liens actifs, éléments de navigation
+             sélectionnés, icônes importantes, barres de progression,
+             en-têtes de sections clés.
+     Note  : Renommé de "primary" pour éviter conflit avec shadcn-vue.
+  */
+  --color-brand: #4A9B8E;
+
+  /* BRAND-ALT - #4e69b1 (Bleu Indigo)
+     ─────────────────────────────────────────────────────────────────────────
+     Couleur secondaire de l'identité visuelle PEDIGUIDE.
+     Usage : Boutons secondaires, liens standards, textes d'emphase,
+             bordures actives, badges, sous-titres, éléments de footer,
+             graphiques et data visualisation.
+     Note  : Renommé de "secondary" pour éviter conflit avec shadcn-vue.
+  */
+  --color-brand-alt: #5797A0;
+
+  /* BRAND-ALT-LIGHT - #e8edf9 (Bleu Indigo Pâle)
+     ─────────────────────────────────────────────────────────────────────────
+     Variante claire de brand-alt pour les fonds.
+     Usage : Fonds de boutons secondaires, fonds hover, backgrounds légers.
+  */
+  --color-brand-alt-light: #A6D1CE;
+
+  /* HIGHLIGHT - #0284c7 (Bleu Ciel Profond)
+     ─────────────────────────────────────────────────────────────────────────
+     Couleur d'accent pour attirer l'attention.
+     Usage : Notifications, badges promotionnels, éléments interactifs hover,
+             highlights, tags spéciaux, éléments ludiques (contexte pédiatrique),
+             call-to-action secondaires.
+     Note  : Renommé de "accent" pour éviter conflit avec shadcn-vue.
+  */
+  --color-highlight: #E79276;
+
+  /* HIGHLIGHT-LIGHT - #e0f2fe (Bleu Ciel Pâle)
+     ─────────────────────────────────────────────────────────────────────────
+     Variante claire de highlight pour les fonds.
+     Usage : Fonds de boutons accent, fonds hover, backgrounds légers.
+  */
+  --color-highlight-light: color-mix(in srgb, var(--color-highlight) 25%, var(--color-bg));
+
+  /* SUCCESS - #059669 (Vert Émeraude)
+     ─────────────────────────────────────────────────────────────────────────
+     Couleur de validation et succès.
+     Usage : Messages de confirmation, icônes de validation, états complétés,
+             indicateurs de santé positifs, checkmarks, toasts de succès,
+             badges "vérifié" ou "approuvé".
+  */
+  --color-success: var(--color-brand);
+
+  /* WARNING - #b45309 (Ambre Profond)
+     ─────────────────────────────────────────────────────────────────────────
+     Couleur d'alerte modérée.
+     Usage : Alertes non-critiques, rappels, informations importantes,
+             états "en attente", notifications de mise à jour,
+             avertissements de formulaire.
+  */
+  --color-warning: var(--color-brand-alt);
+
+  /* ERROR - #dc2626 (Rouge Vif)
+     ─────────────────────────────────────────────────────────────────────────
+     Couleur d'erreur et états critiques.
+     Usage : Messages d'erreur, validation de formulaire échouée,
+             états critiques, boutons de suppression, alertes urgentes,
+             indicateurs de problème.
+  */
+  --color-error: var(--color-highlight);
+
+  /* SURFACE-LIGHT - #e3eeff (Bleu Pâle)
+     ─────────────────────────────────────────────────────────────────────────
+     Surface de fond subtile, teinte froide.
+     Usage : Arrière-plans de sections, cards légères, zones de formulaire,
+             alternance de lignes dans les tableaux, zones de contenu
+             secondaire, backgrounds de modales.
+  */
+  --color-surface-light: #C8E6E1;
+
+  /* SURFACE-SOFT - #f0f9ff (Bleu Ciel Très Pâle)
+     ─────────────────────────────────────────────────────────────────────────
+     Surface de fond alternative, teinte froide complémentaire.
+     Usage : Sections alternatives, mise en avant douce de contenu,
+             backgrounds de témoignages, zones d'information patient,
+             encadrés spéciaux, zones "conseil".
+  */
+  --color-surface-soft: #A6D1CE;
+
+  /* ══════════════════════════════════════════════════════════════════════════
+     VARIABLES SÉMANTIQUES
+     ══════════════════════════════════════════════════════════════════════════ */
+
+  /* ──────────────────────────────────────────────────────────────────────────
+     BOUTONS
+     ────────────────────────────────────────────────────────────────────────── */
+
+  /* Bouton principal (CTA) - Actions importantes : "Prendre RDV", "Valider", "S'inscrire" */
+  --color-btn-cta-bg: var(--color-brand);
+  --color-btn-cta-text: var(--color-text);
+
+  /* Bouton secondaire - Actions secondaires : "Annuler", "Retour", "En savoir plus" */
+  --color-btn-secondary-bg: var(--color-brand-alt);
+  --color-btn-secondary-text: var(--color-text);
+
+  /* Bouton accent - Actions promotionnelles : "Offre spéciale", "Nouveau" */
+  --color-btn-accent-bg: var(--color-highlight);
+  --color-btn-accent-text: var(--color-text);
+
+  /* Bouton danger - Actions destructives : "Supprimer", "Désactiver" */
+  --color-btn-danger-bg: var(--color-error);
+  --color-btn-danger-text: var(--color-text);
+
+  /* ──────────────────────────────────────────────────────────────────────────
+     LIENS & NAVIGATION
+     ────────────────────────────────────────────────────────────────────────── */
+
+  /* Lien standard dans le texte */
+  --color-link: var(--color-brand);
+
+  /* Lien au survol */
+  --color-link-hover: var(--color-brand-alt);
+
+  /* Élément de navigation actif/sélectionné */
+  --color-nav-active: var(--color-brand);
+
+  /* Élément de navigation au survol */
+  --color-nav-hover: var(--color-brand-alt);
+
+  /* ──────────────────────────────────────────────────────────────────────────
+     FORMULAIRES
+     ────────────────────────────────────────────────────────────────────────── */
+
+  /* Bordure de champ par défaut */
+  --color-input-border: color-mix(in srgb, var(--color-neutral) 75%, var(--color-text) 25%);
+
+  /* Bordure de champ au focus */
+  --color-input-focus: var(--color-brand);
+
+  /* Bordure de champ en erreur */
+  --color-input-error: var(--color-error);
+
+  /* Bordure de champ validé */
+  --color-input-valid: var(--color-success);
+
+  /* Texte placeholder */
+  --color-placeholder: var(--color-text-muted);
+
+  /* Label de champ obligatoire (*) */
+  --color-label-required: var(--color-error);
+
+  /* ──────────────────────────────────────────────────────────────────────────
+     MESSAGES & ALERTES (Toasts, Banners, Notifications)
+     ────────────────────────────────────────────────────────────────────────── */
+
+  /* Message de succès - "Rendez-vous confirmé", "Profil mis à jour" */
+  --color-alert-success-bg: color-mix(in srgb, var(--color-brand) 15%, var(--color-bg));
+  --color-alert-success-border: var(--color-success);
+  --color-alert-success-text: var(--color-text);
+
+  /* Message d'avertissement - "Vérifiez vos informations", "Session expire bientôt" */
+  --color-alert-warning-bg: color-mix(in srgb, var(--color-warning) 15%, var(--color-bg));
+  --color-alert-warning-border: var(--color-warning);
+  --color-alert-warning-text: var(--color-text);
+
+  /* Message d'erreur - "Échec de connexion", "Champ invalide" */
+  --color-alert-error-bg: color-mix(in srgb, var(--color-error) 18%, var(--color-bg));
+  --color-alert-error-border: var(--color-error);
+  --color-alert-error-text: var(--color-text);
+
+  /* Message d'information - "Nouveau service disponible", "Mise à jour" */
+  --color-alert-info-bg: var(--color-surface-light);
+  --color-alert-info-border: var(--color-brand-alt);
+  --color-alert-info-text: var(--color-text);
+
+  /* ──────────────────────────────────────────────────────────────────────────
+     BADGES & TAGS
+     ────────────────────────────────────────────────────────────────────────── */
+
+  /* Badge statut validé - "Vérifié", "Approuvé", "Actif" */
+  --color-badge-success-bg: color-mix(in srgb, var(--color-success) 20%, var(--color-bg));
+  --color-badge-success-text: var(--color-text);
+
+  /* Badge statut en attente - "En cours", "À valider" */
+  --color-badge-pending-bg: color-mix(in srgb, var(--color-warning) 18%, var(--color-bg));
+  --color-badge-pending-text: var(--color-text);
+
+  /* Badge statut erreur - "Expiré", "Annulé", "Refusé" */
+  --color-badge-error-bg: color-mix(in srgb, var(--color-error) 25%, var(--color-bg));
+  --color-badge-error-text: var(--color-text);
+
+  /* Badge promotionnel - "Nouveau", "Promo", "Recommandé" */
+  --color-badge-promo-bg: var(--color-highlight-light);
+  --color-badge-promo-text: var(--color-text);
+
+  /* Badge informatif - "Info", "Note", catégories */
+  --color-badge-info-bg: var(--color-surface-light);
+  --color-badge-info-text: var(--color-text);
+
+  /* ──────────────────────────────────────────────────────────────────────────
+     CARTES & SECTIONS
+     ────────────────────────────────────────────────────────────────────────── */
+
+  /* Fond de carte standard */
+  --color-card-bg: var(--color-bg);
+
+  /* Fond de section alternée (zebra striping, sections distinctes) */
+  --color-section-alt: var(--color-surface-light);
+
+  /* Fond de bloc conseil/astuce patient */
+  --color-block-tip-bg: var(--color-surface-soft);
+
+  /* Fond de bloc mise en avant (témoignages, citations) */
+  --color-block-highlight-bg: var(--color-surface-light);
+
+  /* ──────────────────────────────────────────────────────────────────────────
+     BORDURES & SÉPARATEURS
+     ────────────────────────────────────────────────────────────────────────── */
+
+  /* Bordure par défaut (cards, séparateurs) */
+  --color-border-default: var(--color-neutral);
+
+  /* Bordure active/focus */
+  --color-border-active: var(--color-brand);
+
+  /* Bordure d'accent (mise en avant) */
+  --color-border-accent: var(--color-highlight);
+
+  /* ──────────────────────────────────────────────────────────────────────────
+     ICÔNES
+     ────────────────────────────────────────────────────────────────────────── */
+
+  /* Icône par défaut */
+  --color-icon-default: var(--color-text-muted);
+
+  /* Icône active/importante */
+  --color-icon-active: var(--color-brand);
+
+  /* Icône de succès (checkmark, validation) */
+  --color-icon-success: var(--color-success);
+
+  /* Icône d'avertissement */
+  --color-icon-warning: var(--color-warning);
+
+  /* Icône d'erreur */
+  --color-icon-error: var(--color-error);
+
+  /* ──────────────────────────────────────────────────────────────────────────
+     INDICATEURS DE PROGRESSION
+     ────────────────────────────────────────────────────────────────────────── */
+
+  /* Barre de progression - fond */
+  --color-progress-bg: var(--color-neutral);
+
+  /* Barre de progression - remplissage */
+  --color-progress-fill: var(--color-brand);
+
+  /* Barre de progression - complétée */
+  --color-progress-complete: var(--color-success);
+
+  /* ──────────────────────────────────────────────────────────────────────────
+     TABLEAUX
+     ────────────────────────────────────────────────────────────────────────── */
+
+  /* En-tête de tableau */
+  --color-table-header-bg: var(--color-surface-light);
+  --color-table-header-text: var(--color-text);
+
+  /* Ligne alternée (zebra) */
+  --color-table-row-alt: color-mix(in srgb, var(--color-bg) 70%, var(--color-neutral));
+
+  /* Ligne au survol */
+  --color-table-row-hover: var(--color-surface-light);
+
+  /* ══════════════════════════════════════════════════════════════════════════
+     SHADOWS
+     ══════════════════════════════════════════════════════════════════════════ */
+
+  /* XS - Très subtile, pour éléments interactifs au repos */
+  --shadow-xs: 0 1px 2px 0 rgb(24 34 69 / 0.04);
+
+  /* SM - Légère, pour boutons, inputs au focus */
+  --shadow-sm: 0 1px 3px 0 rgb(24 34 69 / 0.06), 0 1px 2px -1px rgb(24 34 69 / 0.06);
+
+  /* MD - Moyenne, pour cards, headers flottants */
+  --shadow-md: 0 4px 6px -1px rgb(24 34 69 / 0.07), 0 2px 4px -2px rgb(24 34 69 / 0.05);
+
+  /* LG - Prononcée, pour modales, dropdowns */
+  --shadow-lg: 0 10px 15px -3px rgb(24 34 69 / 0.08), 0 4px 6px -4px rgb(24 34 69 / 0.05);
+
+  /* XL - Forte, pour éléments en surimpression */
+  --shadow-xl: 0 20px 25px -5px rgb(24 34 69 / 0.08), 0 8px 10px -6px rgb(24 34 69 / 0.04);
+
+  /* 2XL - Très forte, pour dialogs importants */
+  --shadow-2xl: 0 25px 50px -12px rgb(24 34 69 / 0.15);
+
+  /* Header - Ombre spécifique pour le header avec effet de flottement */
+  --shadow-header: 0 2px 8px -2px rgb(24 34 69 / 0.08), 0 4px 12px -4px rgb(24 34 69 / 0.06);
+
+  /* Card - Ombre douce pour les cartes */
+  --shadow-card: 0 2px 8px -2px rgb(24 34 69 / 0.06), 0 1px 3px -1px rgb(24 34 69 / 0.04);
+
+  /* Button - Ombre pour boutons élevés */
+  --shadow-button: 0 1px 3px 0 rgb(24 34 69 / 0.1), 0 1px 2px -1px rgb(24 34 69 / 0.06);
+
+  /* Input Focus - Ombre pour champs au focus */
+  --shadow-input-focus: 0 0 0 3px rgb(74 155 142 / 0.2);
+
+  /* Dropdown - Ombre pour menus déroulants */
+  --shadow-dropdown: 0 10px 20px -5px rgb(24 34 69 / 0.1), 0 4px 8px -4px rgb(24 34 69 / 0.06);
+}
+
+/*---break---*/
+
+@theme inline {
+  /* Radius */
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+
+  /* Variables shadcn-vue */
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  /* Charts */
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+
+  /* Sidebar */
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+}
+
+/*---break---*/
+
+:root {
+  --radius: 0.625rem;
+  --pg-primary: #4A9B8E;
+  --pg-secondary: #5797A0;
+  --pg-light-aqua: #A6D1CE;
+  --pg-pastel-bg: #C8E6E1;
+  --pg-cream: #F6F6EB;
+  --pg-peach: #E79276;
+  --pg-neutral: #E8E8E8;
+  --pg-dark: #182245;
+
+  /* ═══════════════════════════════════════════════════════════════════
+     PALETTE PEDIGUIDE - Adaptée pour shadcn-vue
+     Toutes les couleurs sont dérivées de la palette principale PediGuide
+     ═══════════════════════════════════════════════════════════════════ */
+
+  /* Background & Foreground - Couleurs de base */
+  --background: var(--pg-cream);
+  --foreground: var(--pg-dark);
+
+  /* Card - Surfaces de contenu */
+  --card: var(--pg-cream);
+  --card-foreground: var(--pg-dark);
+
+  /* Popover - Menus contextuels */
+  --popover: var(--pg-cream);
+  --popover-foreground: var(--pg-dark);
+
+  /* Primary - Couleur principale (Brand) */
+  --primary: var(--pg-primary);
+  --primary-foreground: var(--pg-cream);
+
+  /* Secondary - Couleur secondaire (Brand Alt) */
+  --secondary: var(--pg-secondary);
+  --secondary-foreground: var(--pg-dark);
+
+  /* Muted - Éléments atténués */
+  --muted: var(--pg-neutral);
+  --muted-foreground: color-mix(in srgb, var(--pg-dark) 70%, var(--pg-neutral));
+
+  /* Accent - Éléments d'accent (Highlight) */
+  --accent: var(--pg-light-aqua);
+  --accent-foreground: var(--pg-dark);
+
+  /* Destructive - Actions destructives */
+  --destructive: var(--pg-peach);
+
+  /* Border & Input - Bordures et champs */
+  --border: var(--pg-neutral);
+  --input: color-mix(in srgb, var(--pg-neutral) 75%, var(--pg-dark) 25%);
+
+  /* Ring - Focus rings */
+  --ring: var(--pg-primary);
+
+  /* Charts - Graphiques et visualisations */
+  --chart-1: var(--pg-primary);
+  --chart-2: var(--pg-secondary);
+  --chart-3: var(--pg-peach);
+  --chart-4: var(--pg-dark);
+  --chart-5: var(--pg-light-aqua);
+
+  /* Sidebar - Navigation latérale */
+  --sidebar: var(--pg-cream);
+  --sidebar-foreground: var(--pg-dark);
+  --sidebar-primary: var(--pg-primary);
+  --sidebar-primary-foreground: var(--pg-dark);
+  --sidebar-accent: var(--pg-pastel-bg);
+  --sidebar-accent-foreground: var(--pg-dark);
+  --sidebar-border: var(--pg-neutral);
+  --sidebar-ring: var(--pg-primary);
+}
+
+/*---break---*/
+
+.dark {
+  --background: oklch(0.145 0 0);
+  --foreground: oklch(0.985 0 0);
+  --card: oklch(0.205 0 0);
+  --card-foreground: oklch(0.985 0 0);
+  --popover: oklch(0.205 0 0);
+  --popover-foreground: oklch(0.985 0 0);
+  --primary: oklch(0.922 0 0);
+  --primary-foreground: oklch(0.205 0 0);
+  --secondary: oklch(0.269 0 0);
+  --secondary-foreground: oklch(0.985 0 0);
+  --muted: oklch(0.269 0 0);
+  --muted-foreground: oklch(0.708 0 0);
+  --accent: oklch(0.269 0 0);
+  --accent-foreground: oklch(0.985 0 0);
+  --destructive: oklch(0.704 0.191 22.216);
+  --border: oklch(1 0 0 / 10%);
+  --input: oklch(1 0 0 / 15%);
+  --ring: oklch(0.556 0 0);
+  --chart-1: oklch(0.488 0.243 264.376);
+  --chart-2: oklch(0.696 0.17 162.48);
+  --chart-3: oklch(0.769 0.188 70.08);
+  --chart-4: oklch(0.627 0.265 303.9);
+  --chart-5: oklch(0.645 0.246 16.439);
+  --sidebar: oklch(0.205 0 0);
+  --sidebar-foreground: oklch(0.985 0 0);
+  --sidebar-primary: oklch(0.488 0.243 264.376);
+  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-accent: oklch(0.269 0 0);
+  --sidebar-accent-foreground: oklch(0.985 0 0);
+  --sidebar-border: oklch(1 0 0 / 10%);
+  --sidebar-ring: oklch(0.556 0 0);
+}
+
+/*---break---*/
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-text;
+  }
+  .skip-link {
+    @apply sr-only focus:not-sr-only focus:absolute focus:top-4 focus:left-4 focus:z-50 focus:rounded-md focus:bg-background focus:px-3 focus:py-2 focus:text-foreground focus:shadow-md focus:ring-2 focus:ring-ring focus:ring-offset-2 focus:ring-offset-background;
+  }
+  .pg-btn-continue {
+    @apply bg-primary text-primary-foreground shadow-sm ring-1 ring-border/40 hover:bg-primary/90 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background;
+  }
+}

@@ -1,0 +1,199 @@
+{
+  "id": "6cfcda30-95ce-4cf9-aeb0-268f6cd4aaa5",
+  "prevId": "00000000-0000-0000-0000-000000000000",
+  "version": "7",
+  "dialect": "postgresql",
+  "tables": {
+    "public.formulaires": {
+      "name": "formulaires",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "now()"
+        },
+        "child_first_name": {
+          "name": "child_first_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "child_birth_date": {
+          "name": "child_birth_date",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "consultation_reason": {
+          "name": "consultation_reason",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "behavior_changes": {
+          "name": "behavior_changes",
+          "type": "json",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "clinical_signs": {
+          "name": "clinical_signs",
+          "type": "json",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "duration": {
+          "name": "duration",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "worry_level": {
+          "name": "worry_level",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "actions_taken": {
+          "name": "actions_taken",
+          "type": "json",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "additional_notes": {
+          "name": "additional_notes",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "'new'"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.doctors": {
+      "name": "doctors",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "now()"
+        },
+        "rpps": {
+          "name": "rpps",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "email": {
+          "name": "email",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "password_hash": {
+          "name": "password_hash",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "cps_card_url": {
+          "name": "cps_card_url",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "account_status": {
+          "name": "account_status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "'pending_validation'"
+        },
+        "kyc_status": {
+          "name": "kyc_status",
+          "type": "varchar(50)",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "'pending'"
+        },
+        "kyc_session_id": {
+          "name": "kyc_session_id",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "kyc_data": {
+          "name": "kyc_data",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "doctors_rpps_unique": {
+          "name": "doctors_rpps_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "rpps"
+          ]
+        },
+        "doctors_email_unique": {
+          "name": "doctors_email_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "email"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    }
+  },
+  "enums": {},
+  "schemas": {},
+  "sequences": {},
+  "roles": {},
+  "policies": {},
+  "views": {},
+  "_meta": {
+    "columns": {},
+    "schemas": {},
+    "tables": {}
+  }
+}

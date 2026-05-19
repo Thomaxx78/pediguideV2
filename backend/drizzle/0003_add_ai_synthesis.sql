@@ -1,0 +1,1 @@
+ALTER TABLE "formulaires" ADD COLUMN "ai_synthesis" jsonb;

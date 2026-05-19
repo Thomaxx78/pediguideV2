@@ -1,0 +1,198 @@
+name: CI/CD Pipeline - Pediguide
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+  pull_request:
+    branches:
+      - main
+      - develop
+
+env:
+  VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+  VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+
+jobs:
+  quality-check:
+    name: Quality & Security Check
+    runs-on: ubuntu-latest
+    steps: 
+      - name: Checkout code
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          cache: 'npm'
+          cache-dependency-path: |
+            backend/package-lock.json
+            frontend/package-lock.json
+
+      - name: Install Backend Dependencies
+        working-directory: ./backend
+        run: npm ci
+
+      - name: Lint Backend
+        working-directory: ./backend
+        run: npm run lint
+
+      - name: Security Audit Backend
+        working-directory: ./backend
+        run: npm audit --audit-level=high || true
+
+      - name: Install Frontend Dependencies
+        working-directory: ./frontend
+        run: npm ci
+
+      - name: Lint Frontend
+        working-directory: ./frontend
+        run: npm run lint
+
+  deploy-backend:
+    name: Deploy Backend to Vercel
+    needs: quality-check
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    environment: production
+    env:
+      VERCEL_PROJECT_ID: ${{ secrets.VERCEL_BACKEND_PROJECT_ID }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          cache-dependency-path: ./backend/package-lock.json
+
+      - name: Install Vercel CLI
+        run: npm install --global vercel@latest
+
+      - name: Pull Vercel Environment Information (Backend)
+        working-directory: ./backend
+        run: vercel pull --yes --environment=production --token=${{ secrets.VERCEL_TOKEN }}
+
+      - name: Build Backend Artifacts
+        working-directory: ./backend
+        run: vercel build --prod --token=${{ secrets.VERCEL_TOKEN }}
+
+      - name: Deploy Backend to Production
+        working-directory: ./backend
+        run: vercel deploy --prebuilt --prod --token=${{ secrets.VERCEL_TOKEN }}
+
+  deploy-frontend:
+    name: Deploy Frontend to Vercel
+    needs: quality-check
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    environment: production
+    env:
+      VERCEL_PROJECT_ID: ${{ secrets.VERCEL_FRONTEND_PROJECT_ID }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          cache-dependency-path: ./frontend/package-lock.json
+
+      - name: Install Vercel CLI
+        run: npm install --global vercel@latest
+
+      - name: Pull Vercel Environment Information (Frontend)
+        working-directory: ./frontend
+        run: vercel pull --yes --environment=production --token=${{ secrets.VERCEL_TOKEN }}
+
+      - name: Build Frontend Artifacts
+        working-directory: ./frontend
+        run: vercel build --prod --token=${{ secrets.VERCEL_TOKEN }}
+
+      - name: Deploy Frontend to Production
+        working-directory: ./frontend
+        run: vercel deploy --prebuilt --prod --token=${{ secrets.VERCEL_TOKEN }}
+
+  smoke-test:
+    name: Smoke Test Deployed Applications
+    runs-on: ubuntu-latest
+    environment: production
+    needs: [deploy-frontend, deploy-backend]
+    if: startsWith(github.ref, 'refs/tags/')
+
+    steps: 
+      - name: Wait and Test Backend (Vercel)
+        run: |
+          HTTP_STATUS=$(curl -o /dev/null -s -w "%{http_code}\n" https://pediguide-backend.vercel.app/ping)
+          if [ "$HTTP_STATUS" -ne 200 ]; then
+            echo "❌ L'API ne répond pas (Status: $HTTP_STATUS)"
+            exit 1
+          fi
+          echo "✅ API en ligne !"
+
+      - name: Wait and Test Frontend (Vercel)
+        run: |
+          HTTP_STATUS=$(curl -o /dev/null -s -w "%{http_code}\n" https://pediguide-frontend.vercel.app/)
+          if [ "$HTTP_STATUS" -ne 200 ]; then
+            echo "❌ Le Frontend ne répond pas (Status: $HTTP_STATUS)"
+            exit 1
+          fi
+          echo "✅ Frontend en ligne !"
+
+  notify:
+    name: Notify Deployment Status
+    runs-on: ubuntu-latest
+    needs: smoke-test
+    environment: production
+    if: always() && startsWith(github.ref, 'refs/tags/')
+
+    steps: 
+      - name: Set Workflow Context
+        id: set_context
+        run: |
+          echo "WF_CONTEXT=${{ github.ref_name }}" >> $GITHUB_ENV
+          echo "WF_TYPE=Déploiement" >> $GITHUB_ENV
+          echo "ACTOR=${{ github.actor }}" >> $GITHUB_ENV
+          echo "REPO=${{ github.repository }}" >> $GITHUB_ENV
+          echo "RUN_URL=https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}" >> $GITHUB_ENV
+
+      - name: Send Success Notification
+        if: ${{ needs.smoke-test.result == 'success' }}
+        run: |
+          curl -X POST -H "Content-Type: application/json" \
+          -d '{
+            "embeds": [{
+              "title": "✅ ${{ env.WF_TYPE }} Réussi",
+              "description": "**${{ env.WF_CONTEXT }}** sur `${{ env.REPO }}` par `${{ env.ACTOR }}`.",
+              "color": 3066993,
+              "fields": [
+                { "name": "Statut", "value": "Succès" },
+                { "name": "Lien vers le Run", "value": "${{ env.RUN_URL }}" }
+              ]
+            }]
+          }' \
+          "${{ secrets.DISCORD_WEBHOOK_URL }}"
+
+      - name: Send Failure Notification
+        if: ${{ needs.smoke-test.result != 'success' }}
+        run: |
+          curl -X POST -H "Content-Type: application/json" \
+          -d '{
+            "embeds": [{
+              "title": "❌ ${{ env.WF_TYPE }} Échoué",
+              "description": "**${{ env.WF_CONTEXT }}** sur `${{ env.REPO }}` par `${{ env.ACTOR }}`.",
+              "color": 15158332,
+              "fields": [
+                { "name": "Statut", "value": "Échec" },
+                { "name": "Lien vers le Run", "value": "${{ env.RUN_URL }}" }
+              ]
+            }]
+          }' \
+          "${{ secrets.DISCORD_WEBHOOK_URL }}"
