@@ -12,6 +12,16 @@ export interface ReminderInput {
   now: Date;
 }
 
-export function nextReminderToSend(_input: ReminderInput): TierId | null {
-  return null;
+export function nextReminderToSend(input: ReminderInput): TierId | null {
+  const remainingHours = (input.appointmentAt.getTime() - input.now.getTime()) / 3_600_000;
+
+  if (remainingHours <= 0) return null;
+
+  const ascending = [...REMINDER_TIERS].sort((a, b) => a.hoursBefore - b.hoursBefore);
+  const phaseTier = ascending.find((t) => remainingHours <= t.hoursBefore);
+
+  if (!phaseTier) return null;
+  if (input.remindersSent.includes(phaseTier.id)) return null;
+
+  return phaseTier.id;
 }
