@@ -1,2 +1,23 @@
 .idea
 CLAUDE.md
+
+# Variables d'environnement — NE JAMAIS COMMITTER
+.env
+.env.local
+.env.production
+
+# Dépendances
+node_modules/
+
+# Build
+dist/
+.vercel/
+
+# Logs
+*.log
+npm-debug.log*
+
+# Tests
+coverage/
+playwright-report/
+test-results/

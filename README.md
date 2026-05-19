@@ -1,134 +1,211 @@
-# Pediguide
+# PédiGuide — Application de pré-consultation pédiatrique
 
-> **Application de pré-diagnostic pédiatrique pour l'optimisation du parcours de soin.**
+> Outil web permettant aux soignants d'envoyer un questionnaire aux parents avant le rendez-vous. Le médecin reçoit une fiche de synthèse IA avant l'arrivée du patient.
 
-Pediguide est une solution full-stack conçue pour faciliter la gestion des parcours de pré-diagnostic en pédiatrie. Elle permet aux médecins de gérer leurs dossiers et propose un formulaire interactif par étapes pour établir un premier bilan.
-
-L'application est déployée et accessible ici : [pediguide-frontend.vercel.app](https://pediguide-frontend.vercel.app)
+**Démo live :** [pediguide-frontend.vercel.app](https://pediguide-frontend.vercel.app)
 
 ---
 
-## Stack Technique
+## Architecture
 
-Le projet est conçu comme un **monorepo** séparant clairement le frontend et le backend.
+```
+┌──────────────────────────────────────────────────────────────────────┐
+│                        FRONTEND — Vue.js 3 / Vite                    │
+│                                                                      │
+│  ┌─────────────────┐  ┌─────────────────┐  ┌──────────────────────┐ │
+│  │  Espace médecin  │  │ Formulaire       │  │  Synthèse IA         │ │
+│  │  (auth JWT)      │  │ patient          │  │  (fiche pré-consult) │ │
+│  │  /dashboard      │  │ /form/:token     │  │  /dashboard/:id      │ │
+│  └─────────────────┘  └─────────────────┘  └──────────────────────┘ │
+└─────────────────────────────┬────────────────────────────────────────┘
+                              │ HTTPS / TLS 1.3
+                              │ Authorization: Bearer <JWT>
+┌─────────────────────────────▼────────────────────────────────────────┐
+│                   BACKEND — Express.js (Vercel Serverless)            │
+│                                                                      │
+│  ┌──────────────┐  ┌───────────────┐  ┌────────────┐  ┌──────────┐  │
+│  │ Helmet       │  │ Rate limiting  │  │ CORS       │  │ Zod      │  │
+│  │ (CSP, HSTS)  │  │ (20 req/15min) │  │ (allowlist)│  │ (valid.) │  │
+│  └──────────────┘  └───────────────┘  └────────────┘  └──────────┘  │
+│                                                                      │
+│  POST /api/auth/login     → bcrypt compare + JWT sign                │
+│  POST /api/auth/register  → bcrypt hash (coût 12)                    │
+│  GET  /api/diagnosis      → liste formulaires (auth requise)         │
+│  POST /api/diagnosis      → soumission patient (token session)       │
+│  POST /api/diagnosis/:id/synthesize → appel LLM Groq                │
+│  GET  /api/diagnosis/:id/pdf        → export PDF (pdfkit)            │
+│  POST /api/sessions       → génération lien unique patient           │
+│  POST /api/kyc/start      → vérification identité médecin (Didit)   │
+└──────────┬───────────────────────────────────────┬───────────────────┘
+           │                                       │
+┌──────────▼──────────┐               ┌────────────▼──────────────────┐
+│  Supabase PostgreSQL │               │  Services externes             │
+│  (EU-West-2)         │               │                               │
+│                      │               │  Groq   → Synthèse LLM        │
+│  doctors             │               │  Resend → Emails patients      │
+│  form_templates      │               │  Didit  → KYC médecin         │
+│  patient_sessions    │               │                               │
+│  formulaires         │               └───────────────────────────────┘
+│  (RLS recommandé)    │
+└──────────────────────┘
+```
 
-### **Frontend** (`/frontend`)
-- **Framework** : [Vue 3](https://vuejs.org/) (Composition API)
-- **Build Tool** : [Vite](https://vitejs.dev/)
-- **Langage** : TypeScript
-- **State Management** : [Pinia](https://pinia.vuejs.org/)
-- **UI & Styling** : [Tailwind CSS](https://tailwindcss.com/) & [Shadcn-vue](https://www.shadcn-vue.com/)
-- **Validation** : Logique de validation personnalisée par étapes
+### Justification des choix techniques
 
-### **Backend** (`/backend`)
-- **Runtime** : Node.js (v20+)
-- **Framework** : [Express](https://expressjs.com/)
-- **Langage** : TypeScript
-- **Base de données** : PostgreSQL
-- **ORM** : [Drizzle ORM](https://orm.drizzle.team/)
-- **Authentification** : BCrypt & JWT (implémentation custom)
-
-### **DevOps & Infra**
-- **Conteneurisation** : Docker & Docker Compose
-- **CI/CD** : GitHub Actions (Linting, Tests, Déploiement Vercel)
-- **Hébergement** : Vercel (Frontend & Backend Serverless functions)
+| Choix | Justification |
+|-------|---------------|
+| **Vue.js 3 + Composition API** | Réactivité fine, TypeScript natif, ecosystem mature |
+| **Express.js serverless (Vercel)** | Zero cold-start critique, déploiement sans infra à gérer |
+| **Drizzle ORM** | Type-safe, migrations versionnées, compatible Supabase |
+| **Supabase (PostgreSQL)** | Scalable, EU, RLS intégré, backups automatiques |
+| **Groq (Llama 3.3 70B)** | Inférence rapide (<2s), moins coûteux qu'OpenAI, RGPD via CCT |
+| **JWT stateless** | Pas de session serveur, compatible serverless |
+| **bcrypt coût 12** | Équilibre sécurité / performance (≈300ms, résistant au brute-force) |
+| **Zod** | Validation runtime + types TypeScript inférés automatiquement |
+| **Helmet** | 15 headers de sécurité en une ligne, standard de l'industrie |
 
 ---
 
-## Fonctionnalités Clés
+## Stack technique
 
-- **Authentification Médecin** : Inscription et connexion sécurisée (RPPS, Email).
-- **Parcours de Diagnostic** : Formulaire multi-étapes (5 étapes) avec validation progressive.
-- **Logique conditionnelle** : Calculs automatiques (ex: âge max) et gestion des erreurs de saisie.
-- **API REST** : Gestion des utilisateurs et réception des formulaires de diagnostic.
+| Couche | Technologies |
+|--------|-------------|
+| **Frontend** | Vue.js 3, Vite, TypeScript, Tailwind CSS v4, Pinia, shadcn-vue |
+| **Backend** | Express.js 5, Node.js 20, TypeScript |
+| **BDD** | PostgreSQL (Supabase), Drizzle ORM |
+| **Auth** | JWT (jsonwebtoken), bcrypt |
+| **Sécurité** | Helmet, express-rate-limit, Zod, CORS restreint |
+| **IA** | Groq SDK (Llama 3.3 70B) |
+| **Email** | Resend |
+| **KYC** | Didit |
+| **Tests** | Vitest (unitaires), Playwright (E2E) |
+| **CI/CD** | GitHub Actions → Vercel |
 
 ---
 
-## Installation et Démarrage (Local)
+## Installation locale
 
 ### Prérequis
-- **Git**
-- **Node.js** (v20 recommandé)
-- **Docker Desktop** (pour la base de données locale)
 
-### 1. Cloner le projet
+- Node.js ≥ 20
+- Docker Desktop (base de données locale)
+
+### 1. Cloner
 
 ```bash
-git clone git@github.com:arthurgramont/pediguide.git
+git clone https://github.com/arthurgramont/pediguide.git
 cd pediguide
 ```
 
-### 2. Configuration des variables d'environnement
+### 2. Variables d'environnement
 
-Vous devez créer un fichier `.env` dans les dossiers `backend` et `frontend` (ou utiliser les exemples fournis s'ils existent).
-
-**Backend (`backend/.env`) :**
-```env
-PORT=3000
-DATABASE_URL=postgresql://user:password@localhost:5432/pediguide_db
+```bash
+cp backend/.env.example backend/.env
+# Remplir les valeurs dans backend/.env
 ```
 
-**Frontend (`frontend/.env`) :**
-```env
-VITE_API_URL=http://localhost:3000
-```
-
-### 3. Démarrage via Docker Compose (Recommandé)
-
-Cette méthode lance le backend, le frontend et une base de données PostgreSQL locale.
+### 3. Démarrer (Docker recommandé)
 
 ```bash
 docker compose up --build
+# Frontend : http://localhost:5173
+# Backend  : http://localhost:3000
 ```
-*L'application sera accessible sur `http://localhost:5173`.*
 
-### 4. Démarrage Manuel (Sans Docker)
+### 4. Démarrer manuellement
 
-Si vous préférez lancer les services individuellement :
+```bash
+# Backend
+cd backend && npm install && npm run migrate && npm run dev
 
-**Base de données :**
-Assurez-vous d'avoir une instance PostgreSQL qui tourne et mettez à jour votre `DATABASE_URL`.
+# Frontend (autre terminal)
+cd frontend && npm install && npm run dev
+```
 
-**Backend :**
+---
+
+## Base de données
+
 ```bash
 cd backend
-npm install
-npm run migrate
-npm run dev
+npm run generate   # génère les migrations SQL
+npm run migrate    # applique à la base
+npm run push       # sync direct (dev uniquement)
 ```
 
-**Frontend :**
+**Schéma (4 tables) :**
+
+```
+doctors           → médecins (RPPS, email, passwordHash, kycStatus)
+form_templates    → modèles de questionnaires (JSONB questions)
+patient_sessions  → liens uniques patient (token, expiration 7j)
+formulaires       → réponses patient + synthèse IA (JSONB)
+```
+
+---
+
+## Tests
+
+### Unitaires (Vitest)
+
+```bash
+cd backend
+npm test                 # run
+npm run test:coverage    # avec rapport de couverture
+```
+
+Couvre :
+- `auth.middleware.ts` — 6 cas (token absent, invalide, expiré, valide, JWT_SECRET manquant)
+- `validate.ts` — schémas Zod register, login, diagnosis
+
+### E2E (Playwright)
+
 ```bash
 cd frontend
-npm install
-npm run dev
+npm run test:e2e         # headless
+npm run test:e2e:ui      # interface graphique Playwright
 ```
 
----
-
-## Base de données & Migrations
-
-Le projet utilise **Drizzle ORM**. Les schémas sont définis dans `backend/src/db/schema.ts`.
-
-Commandes utiles (à exécuter dans `/backend`) :
-- `npm run generate` : Génère les fichiers SQL basés sur les changements de schéma.
-- `npm run migrate` : Applique les changements à la base de données.
-- `npm run push` : Synchronise directement le schéma (utile en dev rapide).
+Couvre :
+- Parcours complet formulaire patient (5 étapes)
+- Navigation et pages publiques
+- Validation des champs obligatoires
+- Bouton Retour
 
 ---
 
-## CI/CD & Déploiement
+## Sécurité
 
-Le projet dispose d'un pipeline d'intégration continue via **GitHub Actions** (fichier `.github/workflows/pipeline.yml`).
+Voir [SECURITE_RGPD.md](./SECURITE_RGPD.md) pour la documentation complète.
 
-Le pipeline effectue les actions suivantes :
-1. **Quality Check** : Linting (ESLint) et vérification des types pour le Backend et le Frontend.
-2. **Déploiement** : 
-  - Déclenchement automatique sur création de **Tag** (ex: `v1.0.0`).
-  - Déploiement sur **Vercel** (Environnement de Production).
-3. **Notification** : Envoi d'un rapport de déploiement sur Discord.
+**Mesures actives :**
 
-Pour déployer une nouvelle version en production :
+| Mesure | Détail |
+|--------|--------|
+| Headers HTTP | Helmet (CSP, HSTS, X-Frame-Options...) |
+| CORS | Restreint à `FRONTEND_URL` + domaine Vercel |
+| Rate limiting | 20 req/15min sur `/api/auth`, 120 req/min global |
+| Mots de passe | bcrypt coût 12 |
+| Tokens | JWT HS256, expiration 7j |
+| Protection timing | Hash dummy sur login (anti-enumeration) |
+| Validation | Zod sur toutes les routes critiques |
+| Secrets | `.env` dans `.gitignore`, `.env.example` fourni |
+
+---
+
+## CI/CD
+
+```
+push tag v*.*.* 
+  → quality-check (lint + npm audit)
+  → deploy-backend (Vercel)
+  → deploy-frontend (Vercel)
+  → smoke-test (/ping)
+  → notify (Discord)
+```
+
+### Déployer une nouvelle version
+
 ```bash
 git tag v1.0.X
 git push origin v1.0.X
@@ -136,24 +213,29 @@ git push origin v1.0.X
 
 ---
 
-## Structure du Projet
+## Structure du projet
 
 ```
 .
-├── .github/            # Workflows GitHub Actions
-├── backend/            # API Node.js/Express
-│   ├── drizzle/        # Migrations SQL
+├── .github/workflows/    # CI/CD GitHub Actions
+├── backend/
 │   ├── src/
-│   │   ├── db/         # Schémas et connexion DB
-│   │   ├── routes/     # Routes API (Auth, Diagnosis)
-│   │   └── app.ts      # Point d'entrée
-│   └── Dockerfile
-├── frontend/           # Application Vue 3
+│   │   ├── db/           # Schéma Drizzle + connexion
+│   │   ├── middleware/   # auth.middleware.ts, validate.ts (Zod)
+│   │   ├── routes/       # auth, diagnosis, sessions, templates, kyc, doctors
+│   │   ├── services/     # didit.service.ts
+│   │   └── app.ts        # Express + sécurité (Helmet, CORS, rate-limit)
+│   ├── .env.example
+│   └── vitest.config.ts
+├── frontend/
 │   ├── src/
-│   │   ├── components/ # Composants UI (Shadcn)
-│   │   ├── pages/      # Vues (Login, Diagnosis, etc.)
-│   │   ├── stores/     # Stores Pinia
-│   │   └── router/     # Configuration des routes
-│   └── Dockerfile
-└── docker-compose.yml  # Orchestration locale
-```# pediguideV2
+│   │   ├── components/   # UI (shadcn-vue + composants custom)
+│   │   ├── pages/        # Vues (Diagnosis, Dashboard, Login...)
+│   │   ├── stores/       # Pinia
+│   │   └── router/       # Vue Router + guards auth
+│   ├── tests/e2e/        # Tests Playwright
+│   └── playwright.config.ts
+├── SECURITE_RGPD.md      # Conformité RGPD + mesures sécurité
+├── docker-compose.yml
+└── .gitignore
+```
