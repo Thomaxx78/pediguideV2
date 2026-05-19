@@ -51,6 +51,6 @@ export const diagnosisSchema = z.object({
   actionsTaken: z.array(z.string()).optional(),
   additionalNotes: z.string().max(2000).optional(),
   sessionId: z.string().uuid().optional(),
-  customAnswers: z.record(z.union([z.string(), z.array(z.string())])).optional(),
+  customAnswers: z.record(z.string(), z.union([z.string(), z.array(z.string())])).optional(),
   formTemplateId: z.string().uuid().optional(),
 });

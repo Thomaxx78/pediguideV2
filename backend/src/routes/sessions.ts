@@ -1,10 +1,10 @@
 import { Router, Response } from 'express';
 import { eq, and } from 'drizzle-orm';
 import { randomUUID } from 'crypto';
-import { Resend } from 'resend';
 import { db } from '../db';
 import { patientSessions, diagnosis, doctors, formTemplates, children, DEFAULT_QUESTIONS } from '../db/schema';
 import { authenticateToken, type AuthRequest } from '../middleware/auth.middleware';
+import { sendFormLinkEmail } from '../lib/email';
 
 export const sessionsRouter = Router();
 
@@ -14,7 +14,25 @@ sessionsRouter.post('/', authenticateToken, async (req: AuthRequest, res: Respon
     const doctorId = req.user?.id;
     if (!doctorId) return res.status(401).json({ error: 'Non authentifié' });
 
-    const { patientEmail, patientFirstName, formTemplateId } = req.body;
+    const { patientEmail, patientFirstName, formTemplateId, appointmentAt } = req.body;
+
+    let appointmentDate: Date | null = null;
+    if (appointmentAt) {
+      const parsed = new Date(appointmentAt);
+      if (isNaN(parsed.getTime())) {
+        return res.status(400).json({ error: 'Date de rendez-vous invalide' });
+      }
+      if (parsed.getTime() <= Date.now()) {
+        return res.status(400).json({ error: 'La date de rendez-vous doit être dans le futur' });
+      }
+      appointmentDate = parsed;
+    }
+
+    if (patientEmail && !appointmentDate) {
+      return res.status(400).json({
+        error: 'La date de rendez-vous est obligatoire dès qu\'un email patient est renseigné (sinon les relances ne peuvent pas être envoyées).',
+      });
+    }
 
     const token = randomUUID();
     const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 jours
@@ -26,6 +44,7 @@ sessionsRouter.post('/', authenticateToken, async (req: AuthRequest, res: Respon
       patientFirstName: patientFirstName || null,
       formTemplateId: formTemplateId || null,
       expiresAt,
+      appointmentAt: appointmentDate,
     }).returning();
 
     const baseUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
@@ -177,34 +196,13 @@ sessionsRouter.post('/:id/send-email', authenticateToken, async (req: AuthReques
     if (!session) return res.status(404).json({ error: 'Session introuvable' });
     if (!session.patientEmail) return res.status(400).json({ error: 'Pas d\'email patient configuré' });
 
-    const [doctor] = await db.select({ email: doctors.email, rpps: doctors.rpps })
-      .from(doctors).where(eq(doctors.id, doctorId!)).limit(1);
-
-    const apiKey = process.env.RESEND_API_KEY;
-    if (!apiKey) return res.status(500).json({ error: 'RESEND_API_KEY non configurée' });
-
-    const resend = new Resend(apiKey);
     const baseUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
     const formUrl = `${baseUrl}/form/${session.patientToken}`;
 
-    await resend.emails.send({
-      from: 'PédiGuide <onboarding@resend.dev>',
+    await sendFormLinkEmail({
       to: session.patientEmail,
-      subject: 'Préparez votre consultation — PédiGuide',
-      html: `
-        <div style="font-family: sans-serif; max-width: 560px; margin: 0 auto; padding: 24px;">
-          <h2 style="color: #182245;">Préparez votre consultation</h2>
-          <p>Bonjour${session.patientFirstName ? ` ${session.patientFirstName}` : ''},</p>
-          <p>Votre médecin vous invite à remplir un questionnaire de pré-consultation avant votre rendez-vous.</p>
-          <p>Cela prend <strong>environ 3 minutes</strong> et permet au médecin de mieux préparer votre consultation.</p>
-          <div style="text-align: center; margin: 32px 0;">
-            <a href="${formUrl}" style="background: #4A9B8E; color: white; padding: 14px 28px; border-radius: 8px; text-decoration: none; font-weight: bold;">
-              Remplir le questionnaire
-            </a>
-          </div>
-          <p style="color: #6B7280; font-size: 12px;">Ce lien est valable 7 jours. Si vous ne vous attendiez pas à recevoir cet email, vous pouvez l'ignorer.</p>
-        </div>
-      `,
+      patientFirstName: session.patientFirstName,
+      formUrl,
     });
 
     res.json({ success: true });

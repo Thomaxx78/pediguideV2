@@ -70,8 +70,8 @@ const trendConfig = {
 onMounted(async () => {
   try {
     dossier.value = await api.children.get(id)
-  } catch (err: any) {
-    error.value = err.message || 'Impossible de charger ce dossier.'
+  } catch (err: unknown) {
+    error.value = err instanceof Error ? err.message : 'Impossible de charger ce dossier.'
   } finally {
     isLoading.value = false
   }

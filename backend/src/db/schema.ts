@@ -67,6 +67,9 @@ export const patientSessions = pgTable('patient_sessions', {
   patientEmail: text('patient_email'),
   patientFirstName: text('patient_first_name'),
   expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+  appointmentAt: timestamp('appointment_at', { withTimezone: true }),
+  remindersSent: text('reminders_sent').array().notNull().default([]),
+  lastReminderAt: timestamp('last_reminder_at', { withTimezone: true }),
   status: text('status').default('pending'),
   createdAt: timestamp('created_at').defaultNow(),
 });

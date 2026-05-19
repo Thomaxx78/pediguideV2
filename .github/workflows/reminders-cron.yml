@@ -1,0 +1,34 @@
+name: Send Reminder Emails
+
+on:
+  schedule:
+    - cron: '*/30 * * * *'
+  workflow_dispatch:
+
+jobs:
+  send-reminders:
+    name: Trigger reminder endpoint
+    runs-on: ubuntu-latest
+    steps:
+      - name: POST /api/cron/send-reminders
+        env:
+          API_URL: ${{ secrets.API_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          if [ -z "$API_URL" ] || [ -z "$CRON_SECRET" ]; then
+            echo "❌ Missing API_URL or CRON_SECRET secret"
+            exit 1
+          fi
+
+          RESPONSE=$(curl -sS -w "\n%{http_code}" -X POST "$API_URL/api/cron/send-reminders" \
+            -H "Authorization: Bearer $CRON_SECRET")
+          BODY=$(echo "$RESPONSE" | sed '$d')
+          STATUS=$(echo "$RESPONSE" | tail -n1)
+
+          echo "Status: $STATUS"
+          echo "Body: $BODY"
+
+          if [ "$STATUS" -ne 200 ]; then
+            echo "❌ Reminder endpoint returned non-200"
+            exit 1
+          fi

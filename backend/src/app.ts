@@ -14,6 +14,7 @@ import { authRouter } from './routes/auth';
 import { kycRouter } from './routes/kyc';
 import { doctorsRouter } from './routes/doctors';
 import { childrenRouter } from './routes/children';
+import { cronRouter } from './routes/cron';
 
 if (!process.env.DATABASE_URL) {
   console.error('❌ ERREUR FATALE : DATABASE_URL est introuvable dans le .env !');
@@ -90,6 +91,7 @@ app.use('/api/templates', templatesRouter);
 app.use('/api/kyc', kycRouter);
 app.use('/api/doctors', doctorsRouter);
 app.use('/api/children', childrenRouter);
+app.use('/api/cron', cronRouter);
 
 // ── 404 ───────────────────────────────────────────────────────────────────────
 app.use((_req: Request, res: Response) => {
