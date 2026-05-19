@@ -175,6 +175,18 @@ export const api = {
       });
     },
   },
+
+  /**
+   * Children (dossiers patients) endpoints
+   */
+  children: {
+    list: async () => {
+      return apiFetch('/children');
+    },
+    get: async (id: string) => {
+      return apiFetch(`/children/${id}`);
+    },
+  },
 };
 
 export default api;
