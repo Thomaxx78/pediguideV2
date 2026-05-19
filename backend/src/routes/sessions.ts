@@ -3,7 +3,7 @@ import { eq, and } from 'drizzle-orm';
 import { randomUUID } from 'crypto';
 import { Resend } from 'resend';
 import { db } from '../db';
-import { patientSessions, diagnosis, doctors, formTemplates, DEFAULT_QUESTIONS } from '../db/schema';
+import { patientSessions, diagnosis, doctors, formTemplates, children, DEFAULT_QUESTIONS } from '../db/schema';
 import { authenticateToken, type AuthRequest } from '../middleware/auth.middleware';
 
 export const sessionsRouter = Router();
@@ -107,9 +107,35 @@ sessionsRouter.post('/:token/respond', async (req, res: Response): Promise<any> 
 
     const data = req.body;
     const isCustom = !!session.formTemplateId;
+    const nir: string | null = data.nir?.trim() || null;
+
+    // Matching NIR : cherche ou crée le dossier enfant
+    let childId: string | null = null;
+    if (nir) {
+      const firstName = (data.childFirstName || data.answers?.q1 || '').trim();
+      const lastName = (data.childLastName || data.answers?.q2 || '').trim();
+      const birthDate = (data.childBirthDate || data.answers?.q3 || '').trim();
+
+      const [existing] = await db.select({ id: children.id })
+        .from(children)
+        .where(and(eq(children.nir, nir), eq(children.doctorId, session.doctorId)))
+        .limit(1);
+
+      if (existing) {
+        childId = existing.id;
+      } else if (firstName && lastName && birthDate) {
+        const [created] = await db.insert(children).values({
+          doctorId: session.doctorId,
+          nir,
+          firstName,
+          lastName,
+          birthDate,
+        }).returning({ id: children.id });
+        childId = created.id;
+      }
+    }
 
     const [record] = await db.insert(diagnosis).values({
-      // Champs fixes toujours requis
       childFirstName: data.childFirstName || data.answers?.q1 || 'N/A',
       childLastName: data.childLastName || data.answers?.q2 || 'N/A',
       childBirthDate: data.childBirthDate || data.answers?.q3 || 'N/A',
@@ -124,6 +150,8 @@ sessionsRouter.post('/:token/respond', async (req, res: Response): Promise<any> 
       sessionId: session.id,
       formTemplateId: session.formTemplateId || null,
       customAnswers: isCustom ? (data.answers || {}) : null,
+      childId,
+      nir,
     }).returning({ id: diagnosis.id });
 
     await db.update(patientSessions)

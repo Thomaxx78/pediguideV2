@@ -17,6 +17,7 @@ const answers = ref<Record<string, string | string[]>>({})
 const errors = ref<Record<string, string>>({})
 const isSubmitting = ref(false)
 const submitError = ref('')
+const nir = ref('')
 
 const getAnswer = (id: string): string | string[] => answers.value[id] ?? ''
 const setAnswer = (id: string, val: string | string[]) => { answers.value[id] = val; delete errors.value[id] }
@@ -50,7 +51,7 @@ const submit = async () => {
     const res = await fetch(`${API_BASE_URL}/sessions/${token}/respond`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ answers: answers.value }),
+      body: JSON.stringify({ answers: answers.value, nir: nir.value || undefined }),
     })
     const data = await res.json()
     if (!res.ok) throw new Error(data.error || 'Erreur')
@@ -108,6 +109,25 @@ onMounted(async () => {
         </header>
 
         <form novalidate @submit.prevent="submit" class="space-y-5">
+          <!-- Numéro de sécurité sociale de l'enfant (optionnel) -->
+          <div class="space-y-2 rounded-lg border border-border/50 bg-muted/30 p-4">
+            <label for="nir" class="block text-sm font-medium text-foreground">
+              Numéro de sécurité sociale de l'enfant
+              <span class="ml-1 text-xs font-normal text-muted-foreground">(optionnel)</span>
+            </label>
+            <input
+              id="nir"
+              v-model="nir"
+              type="text"
+              maxlength="15"
+              placeholder="Ex : 2 05 12 75 123 456 78"
+              class="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+            />
+            <p class="text-xs text-muted-foreground">
+              Ce numéro permet à votre médecin de regrouper les consultations de votre enfant dans un même dossier.
+            </p>
+          </div>
+
           <div v-for="q in questions" :key="q.id" class="space-y-2">
             <label :for="`q-${q.id}`" class="block text-sm font-medium text-foreground">
               {{ q.label }}

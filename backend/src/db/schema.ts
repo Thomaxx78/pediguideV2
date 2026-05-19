@@ -71,6 +71,16 @@ export const patientSessions = pgTable('patient_sessions', {
   createdAt: timestamp('created_at').defaultNow(),
 });
 
+export const children = pgTable('children', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  doctorId: uuid('doctor_id').notNull().references(() => doctors.id, { onDelete: 'cascade' }),
+  nir: text('nir').notNull(),
+  firstName: text('first_name').notNull(),
+  lastName: text('last_name').notNull(),
+  birthDate: text('birth_date').notNull(),
+  createdAt: timestamp('created_at').defaultNow(),
+});
+
 export const diagnosis = pgTable('formulaires', {
   id: uuid('id').defaultRandom().primaryKey(),
   createdAt: timestamp('created_at').defaultNow(),
@@ -90,4 +100,6 @@ export const diagnosis = pgTable('formulaires', {
   sessionId: uuid('session_id').references(() => patientSessions.id),
   customAnswers: jsonb('custom_answers').$type<Record<string, string | string[]>>(),
   formTemplateId: uuid('form_template_id').references(() => formTemplates.id),
+  childId: uuid('child_id').references(() => children.id),
+  nir: text('nir'),
 });

@@ -59,6 +59,18 @@ const router = createRouter({
       meta: { layout: 'main', requiresAuth: true },
     },
     {
+      path: '/dashboard/patients',
+      name: 'patients',
+      component: () => import('@/pages/PatientsView.vue'),
+      meta: { layout: 'main', requiresAuth: true },
+    },
+    {
+      path: '/dashboard/patients/:id',
+      name: 'child-dossier',
+      component: () => import('@/pages/ChildDossierView.vue'),
+      meta: { layout: 'main', requiresAuth: true },
+    },
+    {
       path: '/dashboard/:id',
       name: 'doctor-dashboard-detail',
       component: () => import('@/pages/DoctorFormSummaryView.vue'),

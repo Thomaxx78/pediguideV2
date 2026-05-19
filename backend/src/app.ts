@@ -11,6 +11,7 @@ import { templatesRouter } from './routes/templates';
 import { authRouter } from './routes/auth';
 import { kycRouter } from './routes/kyc';
 import { doctorsRouter } from './routes/doctors';
+import { childrenRouter } from './routes/children';
 
 console.log("🔄 Initialisation du serveur...");
 
@@ -39,6 +40,7 @@ app.use('/api/templates', templatesRouter);
 app.use('/api/auth', authRouter);
 app.use('/api/kyc', kycRouter);
 app.use('/api/doctors', doctorsRouter);
+app.use('/api/children', childrenRouter);
 
 const port = process.env.PORT || 3000;
 app.listen(port, () => {
