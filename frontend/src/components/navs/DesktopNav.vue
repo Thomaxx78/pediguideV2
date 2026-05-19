@@ -72,6 +72,11 @@ watch(
         </NavigationMenuItem>
         <NavigationMenuItem>
           <NavigationMenuLink as-child>
+            <RouterLink to="/dashboard/formulaires">Mes formulaires</RouterLink>
+          </NavigationMenuLink>
+        </NavigationMenuItem>
+        <NavigationMenuItem>
+          <NavigationMenuLink as-child>
             <RouterLink to="/profile">Profil</RouterLink>
           </NavigationMenuLink>
         </NavigationMenuItem>

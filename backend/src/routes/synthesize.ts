@@ -1,6 +1,6 @@
 import { Router, Response } from 'express';
 import Groq from 'groq-sdk';
-import { eq } from 'drizzle-orm';
+import { eq, and } from 'drizzle-orm';
 import { db } from '../db';
 import { diagnosis, type AiSynthesis } from '../db/schema';
 import { authenticateToken, type AuthRequest } from '../middleware/auth.middleware';
@@ -102,7 +102,10 @@ synthesizeRouter.post('/:id/synthesize', authenticateToken, async (req: AuthRequ
 synthesizeRouter.get('/:id', authenticateToken, async (req: AuthRequest, res: Response): Promise<any> => {
   try {
     const { id } = req.params;
-    const results = await db.select().from(diagnosis).where(eq(diagnosis.id, id)).limit(1);
+    const doctorId = req.user?.id;
+    const results = await db.select().from(diagnosis)
+      .where(and(eq(diagnosis.id, id), eq(diagnosis.doctorId, doctorId!)))
+      .limit(1);
     const record = results[0];
     if (!record) {
       return res.status(404).json({ error: 'Formulaire introuvable' });

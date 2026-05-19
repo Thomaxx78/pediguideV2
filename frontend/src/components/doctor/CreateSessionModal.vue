@@ -15,6 +15,18 @@ const emailError = ref('')
 
 const patientFirstName = ref('')
 const patientEmail = ref('')
+const selectedTemplateId = ref<string | null>(null)
+
+interface Template { id: string; title: string }
+const templates = ref<Template[]>([])
+
+const loadTemplates = async () => {
+  try {
+    const token = localStorage.getItem('authToken')
+    const res = await fetch(`${API_BASE_URL}/templates`, { headers: { Authorization: `Bearer ${token}` } })
+    templates.value = await res.json()
+  } catch {}
+}
 
 const generatedUrl = ref('')
 const sessionId = ref('')
@@ -27,10 +39,12 @@ const open = () => {
   sessionId.value = ''
   patientFirstName.value = ''
   patientEmail.value = ''
+  selectedTemplateId.value = null
   error.value = ''
   emailError.value = ''
   copied.value = false
   emailSent.value = false
+  loadTemplates()
 }
 
 const close = () => { isOpen.value = false }
@@ -46,6 +60,7 @@ const createSession = async () => {
       body: JSON.stringify({
         patientFirstName: patientFirstName.value || undefined,
         patientEmail: patientEmail.value || undefined,
+        formTemplateId: selectedTemplateId.value || undefined,
       }),
     })
     const data = await res.json()
@@ -109,6 +124,17 @@ const sendEmail = async () => {
             <Field>
               <FieldLabel for="patient-email">Email du parent <span class="text-muted-foreground">(optionnel)</span></FieldLabel>
               <Input id="patient-email" v-model="patientEmail" type="email" placeholder="parent@exemple.fr" autocomplete="off" />
+            </Field>
+            <Field>
+              <FieldLabel for="template-select">Formulaire à utiliser</FieldLabel>
+              <select
+                id="template-select"
+                v-model="selectedTemplateId"
+                class="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+              >
+                <option :value="null">Formulaire standard (par défaut)</option>
+                <option v-for="t in templates" :key="t.id" :value="t.id">{{ t.title }}</option>
+              </select>
             </Field>
           </div>
 

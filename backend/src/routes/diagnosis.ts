@@ -1,8 +1,9 @@
 import { Router, Request, Response } from 'express';
 import PDFDocument from 'pdfkit';
-import { desc, eq } from 'drizzle-orm';
+import { desc, eq, and } from 'drizzle-orm';
 import { db } from '../db';
 import { diagnosis } from '../db/schema';
+import { authenticateToken, type AuthRequest } from '../middleware/auth.middleware';
 
 export const diagnosisRouter = Router();
 
@@ -215,9 +216,12 @@ diagnosisRouter.get('/:id/pdf', async (req: Request, res: Response) => {
   }
 });
 
-diagnosisRouter.get('/', async (req: Request, res: Response) => {
+diagnosisRouter.get('/', authenticateToken, async (req: AuthRequest, res: Response) => {
   try {
-    const list = await db.select().from(diagnosis).orderBy(desc(diagnosis.createdAt));
+    const doctorId = req.user?.id;
+    const list = await db.select().from(diagnosis)
+      .where(eq(diagnosis.doctorId, doctorId!))
+      .orderBy(desc(diagnosis.createdAt));
     res.json(list);
   } catch (error) {
     console.error("Détail de l'erreur", error);

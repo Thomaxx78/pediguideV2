@@ -3,7 +3,7 @@ import { eq, and } from 'drizzle-orm';
 import { randomUUID } from 'crypto';
 import { Resend } from 'resend';
 import { db } from '../db';
-import { patientSessions, diagnosis, doctors } from '../db/schema';
+import { patientSessions, diagnosis, doctors, formTemplates, DEFAULT_QUESTIONS } from '../db/schema';
 import { authenticateToken, type AuthRequest } from '../middleware/auth.middleware';
 
 export const sessionsRouter = Router();
@@ -14,7 +14,7 @@ sessionsRouter.post('/', authenticateToken, async (req: AuthRequest, res: Respon
     const doctorId = req.user?.id;
     if (!doctorId) return res.status(401).json({ error: 'Non authentifié' });
 
-    const { patientEmail, patientFirstName } = req.body;
+    const { patientEmail, patientFirstName, formTemplateId } = req.body;
 
     const token = randomUUID();
     const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 jours
@@ -24,6 +24,7 @@ sessionsRouter.post('/', authenticateToken, async (req: AuthRequest, res: Respon
       patientToken: token,
       patientEmail: patientEmail || null,
       patientFirstName: patientFirstName || null,
+      formTemplateId: formTemplateId || null,
       expiresAt,
     }).returning();
 
@@ -68,6 +69,7 @@ sessionsRouter.get('/:token', async (req, res: Response): Promise<any> => {
       status: patientSessions.status,
       expiresAt: patientSessions.expiresAt,
       patientFirstName: patientSessions.patientFirstName,
+      formTemplateId: patientSessions.formTemplateId,
     }).from(patientSessions).where(eq(patientSessions.patientToken, token)).limit(1);
 
     if (!session) return res.status(404).json({ error: 'Lien introuvable' });
@@ -78,7 +80,15 @@ sessionsRouter.get('/:token', async (req, res: Response): Promise<any> => {
       return res.status(409).json({ error: 'Ce formulaire a déjà été rempli' });
     }
 
-    res.json(session);
+    // Charger les questions du template si associé
+    let questions = DEFAULT_QUESTIONS;
+    if (session.formTemplateId) {
+      const [template] = await db.select({ questions: formTemplates.questions })
+        .from(formTemplates).where(eq(formTemplates.id, session.formTemplateId)).limit(1);
+      if (template) questions = template.questions;
+    }
+
+    res.json({ ...session, questions });
   } catch (error: any) {
     res.status(500).json({ error: 'Erreur serveur' });
   }
@@ -96,19 +106,24 @@ sessionsRouter.post('/:token/respond', async (req, res: Response): Promise<any> 
     if (session.status === 'completed') return res.status(409).json({ error: 'Déjà soumis' });
 
     const data = req.body;
+    const isCustom = !!session.formTemplateId;
+
     const [record] = await db.insert(diagnosis).values({
-      childFirstName: data.childFirstName,
-      childLastName: data.childLastName,
-      childBirthDate: data.childBirthDate,
-      consultationReason: data.consultationReason,
+      // Champs fixes toujours requis
+      childFirstName: data.childFirstName || data.answers?.q1 || 'N/A',
+      childLastName: data.childLastName || data.answers?.q2 || 'N/A',
+      childBirthDate: data.childBirthDate || data.answers?.q3 || 'N/A',
+      consultationReason: data.consultationReason || data.answers?.q4 || 'N/A',
       behaviorChanges: (data.behaviorChanges || []) as string[],
       clinicalSigns: (data.clinicalSigns || []) as string[],
-      duration: data.duration,
-      worryLevel: data.worryLevel,
+      duration: data.duration || 'N/A',
+      worryLevel: data.worryLevel || 'N/A',
       actionsTaken: (data.actionsTaken || []) as string[],
       additionalNotes: data.additionalNotes || '',
       doctorId: session.doctorId,
       sessionId: session.id,
+      formTemplateId: session.formTemplateId || null,
+      customAnswers: isCustom ? (data.answers || {}) : null,
     }).returning({ id: diagnosis.id });
 
     await db.update(patientSessions)

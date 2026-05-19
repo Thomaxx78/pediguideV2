@@ -35,6 +35,18 @@ const router = createRouter({
       meta: { layout: 'main' },
     },
     {
+      path: '/dashboard/formulaires',
+      name: 'form-templates',
+      component: () => import('@/pages/FormTemplatesView.vue'),
+      meta: { layout: 'main', requiresAuth: true },
+    },
+    {
+      path: '/dashboard/formulaires/:id',
+      name: 'form-builder',
+      component: () => import('@/pages/FormBuilderView.vue'),
+      meta: { layout: 'main', requiresAuth: true },
+    },
+    {
       path: '/profile',
       name: 'profile',
       component: () => import('@/pages/ProfileView.vue'),

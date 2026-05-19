@@ -7,6 +7,7 @@ import cors from 'cors';
 import { diagnosisRouter } from './routes/diagnosis';
 import { synthesizeRouter } from './routes/synthesize';
 import { sessionsRouter } from './routes/sessions';
+import { templatesRouter } from './routes/templates';
 import { authRouter } from './routes/auth';
 import { kycRouter } from './routes/kyc';
 import { doctorsRouter } from './routes/doctors';
@@ -34,6 +35,7 @@ app.get('/ping', (req: Request, res: Response) => {
 app.use('/api/diagnosis', diagnosisRouter);
 app.use('/api/diagnosis', synthesizeRouter);
 app.use('/api/sessions', sessionsRouter);
+app.use('/api/templates', templatesRouter);
 app.use('/api/auth', authRouter);
 app.use('/api/kyc', kycRouter);
 app.use('/api/doctors', doctorsRouter);
