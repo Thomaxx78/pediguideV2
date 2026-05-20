@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { HTMLAttributes } from "vue"
 import { cn } from "@/lib/utils"
+import logoUrl from "@/assets/logo.svg"
 
 const props = defineProps<{
   /** Hide the wordmark, show only the mark. */
@@ -13,11 +14,13 @@ const props = defineProps<{
   <div :class="cn('inline-flex items-center gap-2', props.class)">
     <span
       aria-hidden="true"
-      class="inline-flex size-6 items-center justify-center rounded-[var(--r-sm)] bg-primary text-primary-foreground"
+      class="pg-brand-mark inline-flex size-7 items-center justify-center rounded-[var(--r-sm)] bg-primary"
     >
-      <svg viewBox="0 0 16 16" class="size-3.5" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round">
-        <path d="M8 3v10M3 8h10" />
-      </svg>
+      <img
+        :src="logoUrl"
+        alt=""
+        class="size-5 -mb-px"
+      />
     </span>
     <span
       v-if="!iconOnly"
@@ -25,3 +28,11 @@ const props = defineProps<{
     >Pediguide</span>
   </div>
 </template>
+
+<style scoped>
+/* Logo SVG uses fill="currentColor", but it's loaded via <img> so currentColor
+   resolves to the <img>'s color (black). Filter forces it to white. */
+.pg-brand-mark img {
+  filter: brightness(0) invert(1);
+}
+</style>
