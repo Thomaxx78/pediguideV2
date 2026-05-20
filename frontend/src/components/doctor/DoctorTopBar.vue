@@ -51,6 +51,7 @@ const doctorInitial = computed(() => {
 // Nav items shown when authenticated
 const doctorNavItems = [
   { to: '/dashboard', label: 'Boîte de réception' },
+  { to: '/dashboard/patients', label: 'Dossiers patients' },
   { to: '/dashboard/formulaires', label: 'Mes formulaires' },
   { to: '/profile', label: 'Profil' },
 ] as const
@@ -58,8 +59,12 @@ const doctorNavItems = [
 const isLinkActive = (target: string): boolean => {
   const path = route.path
   if (target === '/dashboard') {
-    // active only on /dashboard or /dashboard/:id (NOT on /dashboard/formulaires)
-    return path === '/dashboard' || /^\/dashboard\/[^/]+$/.test(path) && !path.startsWith('/dashboard/formulaires')
+    // active only on /dashboard or /dashboard/:id (NOT on /dashboard/patients or /dashboard/formulaires)
+    if (path.startsWith('/dashboard/patients') || path.startsWith('/dashboard/formulaires')) return false
+    return path === '/dashboard' || /^\/dashboard\/[^/]+$/.test(path)
+  }
+  if (target === '/dashboard/patients') {
+    return path.startsWith('/dashboard/patients')
   }
   if (target === '/dashboard/formulaires') {
     return path.startsWith('/dashboard/formulaires')
