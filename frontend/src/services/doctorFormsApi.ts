@@ -71,17 +71,31 @@ export interface DiagnosisRecord {
   triageLevel?: TriageLevel | null
   formTemplateId?: string | null
   customAnswers?: Record<string, string | string[]> | null
+  displayStatus?: 'completed' | 'in_progress' | 'pending'
+  patientEmail?: string | null
+  _isSessionOnly?: boolean
+  sessionInfo?: {
+    patientEmail: string | null
+    patientToken: string
+    appointmentAt: string | null
+    patientFirstName: string | null
+  } | null
 }
 
 export type TriageLevel = 'rouge' | 'orange' | 'jaune' | 'vert'
+
+export type DisplayStatus = 'completed' | 'in_progress' | 'pending'
 
 export interface DoctorFormSummary {
   id: string
   patientFirstName: string
   patientLastName: string
+  patientEmail: string | null
   consultationReason: string
   submittedAt: string
   status: string
+  displayStatus: DisplayStatus
+  isSessionOnly: boolean
   /** Convenience pull from aiSynthesis.niveau_priorite so the dashboard can render a dot. */
   aiPriority: 'non_urgent' | 'a_surveiller' | 'urgent' | null
   triageLevel: TriageLevel | null
@@ -117,12 +131,14 @@ export interface DoctorFormDetail extends DoctorFormSummary {
 
   aiSynthesis: AiSynthesis | null
   aiSynthesisVersions: AiSynthesisVersion[]
-  /**
-   * True if this record was submitted via the legacy parent flow (no new
-   * fields populated). Used to choose which render path the detail page uses.
-   */
   isLegacy: boolean
   customAnswers: Record<string, string | string[]> | null
+  sessionInfo: {
+    patientEmail: string | null
+    patientToken: string
+    appointmentAt: string | null
+    patientFirstName: string | null
+  } | null
 }
 
 export interface DoctorFormsListParams {
@@ -158,9 +174,12 @@ const toSummary = (record: DiagnosisRecord): DoctorFormSummary => ({
   id: record.id,
   patientFirstName: clean(record.childFirstName),
   patientLastName: clean(record.childLastName),
+  patientEmail: record.patientEmail ?? null,
   consultationReason: clean(record.consultationReason) || clean(record.worry),
   submittedAt: record.createdAt,
   status: record.status ?? 'new',
+  displayStatus: record.displayStatus ?? 'completed',
+  isSessionOnly: record._isSessionOnly ?? false,
   aiPriority: record.aiSynthesis?.niveau_priorite ?? null,
   triageLevel: record.triageLevel ?? null,
 })
@@ -196,6 +215,7 @@ const toDetail = (record: DiagnosisRecord): DoctorFormDetail => ({
   aiSynthesisVersions: record.aiSynthesisVersions ?? [],
   isLegacy: isLegacyRecord(record),
   customAnswers: record.customAnswers ?? null,
+  sessionInfo: record.sessionInfo ?? null,
 })
 
 const matchesSearch = (record: DiagnosisRecord, search: string) => {

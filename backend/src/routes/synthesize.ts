@@ -2,7 +2,7 @@ import { Router, Response } from 'express';
 import Groq from 'groq-sdk';
 import { eq, and, desc } from 'drizzle-orm';
 import { db } from '../db';
-import { aiSynthesisVersions, diagnosis, type AiSynthesis } from '../db/schema';
+import { aiSynthesisVersions, diagnosis, patientSessions, type AiSynthesis } from '../db/schema';
 import { authenticateToken, type AuthRequest } from '../middleware/auth.middleware';
 
 export const synthesizeRouter = Router();
@@ -174,10 +174,25 @@ synthesizeRouter.get('/:id', authenticateToken, async (req: AuthRequest, res: Re
     if (!record) {
       return res.status(404).json({ error: 'Formulaire introuvable' });
     }
-    const versions = await db.select().from(aiSynthesisVersions)
-      .where(eq(aiSynthesisVersions.diagnosisId, id))
-      .orderBy(desc(aiSynthesisVersions.version));
-    res.json({ ...record, aiSynthesisVersions: versions });
+
+    const [versions, session] = await Promise.all([
+      db.select().from(aiSynthesisVersions)
+        .where(eq(aiSynthesisVersions.diagnosisId, id))
+        .orderBy(desc(aiSynthesisVersions.version)),
+      record.sessionId
+        ? db.select({
+            patientEmail: patientSessions.patientEmail,
+            patientToken: patientSessions.patientToken,
+            appointmentAt: patientSessions.appointmentAt,
+            patientFirstName: patientSessions.patientFirstName,
+          }).from(patientSessions)
+            .where(eq(patientSessions.id, record.sessionId))
+            .limit(1)
+            .then(r => r[0] ?? null)
+        : Promise.resolve(null),
+    ]);
+
+    res.json({ ...record, aiSynthesisVersions: versions, sessionInfo: session });
   } catch (error: any) {
     res.status(500).json({ error: 'Erreur serveur' });
   }

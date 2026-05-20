@@ -222,6 +222,30 @@ const vaccinationsDisplay = computed(() => {
   if (!form.value?.vaccinations) return null
   return labelFor(vaccinationsLabelByValue, form.value.vaccinations)
 })
+
+const isPending = computed(() => form.value?.status === 'pending_response')
+
+const sessionFormUrl = computed(() => {
+  if (!form.value?.sessionInfo?.patientToken) return null
+  const base = import.meta.env.VITE_API_URL?.replace('/api', '') || 'http://localhost:5173'
+  return `${base}/pre-consultation/${form.value.sessionInfo.patientToken}`
+})
+
+const copyLink = async () => {
+  if (!sessionFormUrl.value) return
+  await navigator.clipboard.writeText(sessionFormUrl.value)
+  linkCopied.value = true
+  setTimeout(() => { linkCopied.value = false }, 2000)
+}
+
+const linkCopied = ref(false)
+
+const formatAppointment = (value: string | null) => {
+  if (!value) return null
+  const date = new Date(value)
+  if (isNaN(date.getTime())) return null
+  return new Intl.DateTimeFormat('fr-FR', { dateStyle: 'long', timeStyle: 'short' }).format(date)
+}
 </script>
 
 <template>
@@ -230,23 +254,27 @@ const vaccinationsDisplay = computed(() => {
     <header class="flex flex-wrap items-center justify-between gap-4">
       <div class="space-y-2">
         <p class="text-[11px] font-medium uppercase tracking-[0.08em] text-[var(--color-muted-strong)]">
-          Soumission
+          {{ isPending ? 'En cours' : 'Soumission' }}
         </p>
         <h1
           id="doctor-form-summary-title"
           class="font-display text-3xl font-medium tracking-[-0.02em] text-[var(--color-ink)]"
         >
-          {{ fullName || 'Résumé du formulaire' }}
+          {{ fullName || (form?.sessionInfo?.patientFirstName) || 'Formulaire en attente' }}
         </h1>
-        <p v-if="form" class="text-sm text-[var(--color-ink-2)]">
+        <p v-if="form && !isPending" class="text-sm text-[var(--color-ink-2)]">
           Reçue le {{ formatDate(form.submittedAt) }}
           <span v-if="form.isLegacy" class="ml-2 inline-flex items-center gap-1 rounded-full border border-[var(--color-line-2)] bg-[var(--color-surface-2)] px-2 py-0.5 text-[11px] font-medium uppercase tracking-wide text-[var(--color-muted-strong)]">
             Soumission héritée
           </span>
         </p>
+        <p v-if="form && isPending" class="text-sm text-blue-600">
+          Lien envoyé le {{ formatDate(form.submittedAt) }}
+        </p>
       </div>
       <div class="flex flex-wrap items-center gap-2">
         <Button
+          v-if="!isPending"
           variant="secondary"
           size="sm"
           :disabled="isDownloadingPdf || !formId"
@@ -277,6 +305,64 @@ const vaccinationsDisplay = computed(() => {
     >
       {{ error }}
     </div>
+
+    <!-- Pending / in-progress state -->
+    <template v-else-if="form && isPending">
+      <div class="flex flex-col gap-5">
+        <!-- Status banner -->
+        <div class="flex items-start gap-4 rounded-[var(--r-lg)] border border-blue-200 bg-blue-50 p-5">
+          <div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-blue-100">
+            <svg class="h-5 w-5 text-blue-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="10"/>
+              <polyline points="12 6 12 12 16 14"/>
+            </svg>
+          </div>
+          <div>
+            <p class="font-medium text-blue-800">Formulaire en cours de remplissage</p>
+            <p class="mt-0.5 text-sm text-blue-600">
+              Le patient a ouvert le lien mais n'a pas encore soumis le formulaire.
+            </p>
+          </div>
+        </div>
+
+        <!-- Session info -->
+        <div class="rounded-[var(--r-lg)] border border-[var(--color-line)] bg-[var(--color-surface)] p-5">
+          <h2 class="mb-4 text-[11px] font-medium uppercase tracking-[0.08em] text-[var(--color-muted-strong)]">
+            Informations de la session
+          </h2>
+          <dl class="grid gap-x-8 gap-y-4 sm:grid-cols-2">
+            <div>
+              <dt class="text-xs text-[var(--color-ink-2)]">Patient</dt>
+              <dd class="mt-0.5 font-medium text-[var(--color-ink)]">
+                {{ form.sessionInfo?.patientFirstName || 'Non renseigné' }}
+              </dd>
+            </div>
+            <div v-if="form.sessionInfo?.patientEmail">
+              <dt class="text-xs text-[var(--color-ink-2)]">Email</dt>
+              <dd class="mt-0.5 font-medium text-[var(--color-ink)]">{{ form.sessionInfo.patientEmail }}</dd>
+            </div>
+            <div>
+              <dt class="text-xs text-[var(--color-ink-2)]">Lien envoyé le</dt>
+              <dd class="mt-0.5 font-medium text-[var(--color-ink)]">{{ formatDate(form.submittedAt) }}</dd>
+            </div>
+            <div v-if="form.sessionInfo?.appointmentAt">
+              <dt class="text-xs text-[var(--color-ink-2)]">Rendez-vous</dt>
+              <dd class="mt-0.5 font-medium text-[var(--color-ink)]">
+                {{ formatAppointment(form.sessionInfo.appointmentAt) }}
+              </dd>
+            </div>
+          </dl>
+        </div>
+
+        <!-- Link action -->
+        <div v-if="sessionFormUrl" class="flex items-center gap-3 rounded-[var(--r-lg)] border border-[var(--color-line)] bg-[var(--color-surface)] p-4">
+          <p class="flex-1 truncate text-sm text-[var(--color-ink-2)]">{{ sessionFormUrl }}</p>
+          <Button variant="secondary" size="sm" @click="copyLink">
+            {{ linkCopied ? '✓ Copié !' : 'Copier le lien' }}
+          </Button>
+        </div>
+      </div>
+    </template>
 
     <template v-else-if="form">
       <!-- AI synthesis (always shown — empty state has a CTA) -->

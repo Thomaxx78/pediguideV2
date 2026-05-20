@@ -160,6 +160,19 @@ export const api = {
       });
     },
   },
+  stats: {
+    get: async () => {
+      return apiFetch<{
+        completionRate: number;
+        totalSessions: number;
+        completedSessions: number;
+        avgCompletionMinutes: number | null;
+        priorityDistribution: Record<string, number>;
+        topSymptoms: Array<{ id: string; label: string; count: number }>;
+      }>('/stats');
+    },
+  },
+
   diagnosis: {
     list: async () => {
       return apiFetch('/diagnosis');

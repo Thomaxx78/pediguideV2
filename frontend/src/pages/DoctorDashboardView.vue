@@ -4,6 +4,7 @@ import { useRouter } from 'vue-router'
 import { Input } from '@/components/ui/input'
 import DoctorFormsTable from '@/components/doctor/DoctorFormsTable.vue'
 import CreateSessionModal from '@/components/doctor/CreateSessionModal.vue'
+import DashboardStats from '@/components/doctor/DashboardStats.vue'
 import { doctorFormsApi, type DoctorFormSummary } from '@/services/doctorFormsApi'
 
 const router = useRouter()
@@ -78,6 +79,9 @@ onMounted(() => {
       </div>
       <CreateSessionModal @created="loadForms" />
     </header>
+
+    <!-- Stats -->
+    <DashboardStats />
 
     <!-- Nav -->
     <div class="flex gap-3">

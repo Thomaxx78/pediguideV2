@@ -42,11 +42,19 @@ const priorityConfig = {
   urgent: { label: 'Urgent', dot: 'bg-[var(--color-sev-5)]' },
 } as const
 
-const handleRowSelect = (id: string) => {
-  emit('select', id)
+const statusConfig = {
+  completed:   { label: 'Complété',           classes: 'bg-emerald-50 text-emerald-700',  dot: 'bg-emerald-500' },
+  in_progress: { label: 'En cours',           classes: 'bg-blue-50 text-blue-700',        dot: 'bg-blue-500' },
+  pending:     { label: 'Pas encore commencé', classes: 'bg-gray-100 text-gray-500',       dot: 'bg-gray-400' },
+} as const
+
+const handleRowSelect = (form: { id: string; isSessionOnly: boolean }) => {
+  if (form.isSessionOnly) return
+  emit('select', form.id)
 }
 
-const handleRowKeydown = (event: KeyboardEvent, id: string) => {
+const handleRowKeydown = (event: KeyboardEvent, form: { id: string; isSessionOnly: boolean }) => {
+  if (form.isSessionOnly) return
   const target = event.target
   if (target instanceof HTMLElement) {
     const isInteractive = target.closest('a, button, input, select, textarea')
@@ -54,7 +62,7 @@ const handleRowKeydown = (event: KeyboardEvent, id: string) => {
   }
   if (event.key === 'Enter' || event.key === ' ') {
     event.preventDefault()
-    emit('select', id)
+    emit('select', form.id)
   }
 }
 </script>
@@ -108,12 +116,17 @@ const handleRowKeydown = (event: KeyboardEvent, id: string) => {
       <article
         v-for="form in forms"
         :key="form.id"
-        role="link"
-        tabindex="0"
-        :aria-label="`Ouvrir le formulaire de ${form.patientFirstName || 'patient'}`"
-        class="cursor-pointer rounded-[var(--r-md)] border border-[var(--color-line)] bg-[var(--color-surface)] p-4 transition-colors hover:border-[var(--color-line-2)] focus-visible:border-primary focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/45"
-        @click="handleRowSelect(form.id)"
-        @keydown="handleRowKeydown($event, form.id)"
+        :role="form.isSessionOnly ? 'listitem' : 'link'"
+        :tabindex="form.isSessionOnly ? -1 : 0"
+        :aria-label="form.isSessionOnly ? undefined : `Ouvrir le formulaire de ${form.patientFirstName || 'patient'}`"
+        :class="[
+          'rounded-[var(--r-md)] border border-[var(--color-line)] bg-[var(--color-surface)] p-4 transition-colors',
+          form.isSessionOnly
+            ? 'opacity-70'
+            : 'cursor-pointer hover:border-[var(--color-line-2)] focus-visible:border-primary focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/45',
+        ]"
+        @click="handleRowSelect(form)"
+        @keydown="handleRowKeydown($event, form)"
       >
         <header class="flex items-start justify-between gap-3">
           <div class="flex items-center gap-2">
@@ -124,11 +137,12 @@ const handleRowKeydown = (event: KeyboardEvent, id: string) => {
               :title="priorityConfig[form.aiPriority].label"
             ></span>
             <p class="text-[15px] font-medium text-[var(--color-ink)]">
-              {{ form.patientFirstName || 'Patient' }}
+              {{ form.patientFirstName || form.patientEmail || 'Patient' }}
               <span v-if="form.patientLastName" class="text-[var(--color-ink-2)]">{{ form.patientLastName }}</span>
             </p>
           </div>
           <RouterLink
+            v-if="!form.isSessionOnly"
             :to="`/dashboard/${form.id}`"
             class="text-[13px] font-medium text-primary underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/45 rounded"
             @click.stop
@@ -136,14 +150,19 @@ const handleRowKeydown = (event: KeyboardEvent, id: string) => {
             Voir
           </RouterLink>
         </header>
-        <p
-          v-if="form.consultationReason"
-          class="mt-2 text-[13.5px] text-[var(--color-ink-2)]"
-        >
-          {{ form.consultationReason }}
-        </p>
-        <p class="mt-2 text-[12px] text-[var(--color-muted-strong)]">
-          Soumis {{ formatDate(form.submittedAt) }}
+        <div class="mt-2 flex items-center gap-2">
+          <span
+            :class="['inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[11px] font-medium', statusConfig[form.displayStatus].classes]"
+          >
+            <span :class="['h-1.5 w-1.5 rounded-full', statusConfig[form.displayStatus].dot]" aria-hidden="true" />
+            {{ statusConfig[form.displayStatus].label }}
+          </span>
+          <p v-if="form.consultationReason" class="text-[13px] text-[var(--color-ink-2)]">
+            · {{ form.consultationReason }}
+          </p>
+        </div>
+        <p class="mt-1.5 text-[12px] text-[var(--color-muted-strong)]">
+          {{ form.isSessionOnly ? 'Lien envoyé' : 'Soumis' }} {{ formatDate(form.submittedAt) }}
         </p>
       </article>
     </div>
@@ -159,6 +178,9 @@ const handleRowKeydown = (event: KeyboardEvent, id: string) => {
           <tr>
             <th scope="col" class="px-6 py-3 text-[11px] font-medium uppercase tracking-wide text-[var(--color-muted-strong)]">
               Patient
+            </th>
+            <th scope="col" class="px-6 py-3 text-[11px] font-medium uppercase tracking-wide text-[var(--color-muted-strong)]">
+              Statut
             </th>
             <th scope="col" class="px-6 py-3 text-[11px] font-medium uppercase tracking-wide text-[var(--color-muted-strong)]">
               Triage
@@ -178,12 +200,17 @@ const handleRowKeydown = (event: KeyboardEvent, id: string) => {
           <tr
             v-for="form in forms"
             :key="form.id"
-            role="link"
-            tabindex="0"
-            :aria-label="`Ouvrir le formulaire de ${form.patientFirstName || 'patient'}`"
-            class="group cursor-pointer transition-colors hover:bg-[var(--color-surface-2)] focus-visible:bg-[var(--color-surface-2)] focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/45 focus-visible:ring-inset"
-            @click="handleRowSelect(form.id)"
-            @keydown="handleRowKeydown($event, form.id)"
+            :role="form.isSessionOnly ? 'row' : 'link'"
+            :tabindex="form.isSessionOnly ? -1 : 0"
+            :aria-label="form.isSessionOnly ? undefined : `Ouvrir le formulaire de ${form.patientFirstName || 'patient'}`"
+            :class="[
+              'group transition-colors',
+              form.isSessionOnly
+                ? 'opacity-60'
+                : 'cursor-pointer hover:bg-[var(--color-surface-2)] focus-visible:bg-[var(--color-surface-2)] focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/45 focus-visible:ring-inset',
+            ]"
+            @click="handleRowSelect(form)"
+            @keydown="handleRowKeydown($event, form)"
           >
             <td class="px-6 py-4 text-[var(--color-ink)]">
               <span class="flex items-center gap-2">
@@ -193,10 +220,21 @@ const handleRowKeydown = (event: KeyboardEvent, id: string) => {
                   :class="['inline-block size-2 rounded-full', priorityConfig[form.aiPriority].dot]"
                   :title="priorityConfig[form.aiPriority].label"
                 ></span>
-                <span class="font-medium">{{ form.patientFirstName || 'Patient' }}</span>
+                <span class="font-medium">{{ form.patientFirstName || form.patientEmail || 'Patient' }}</span>
                 <span v-if="form.patientLastName" class="text-[var(--color-ink-2)]">
                   {{ form.patientLastName }}
                 </span>
+              </span>
+            </td>
+            <td class="px-6 py-4">
+              <span
+                :class="['inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[11.5px] font-medium', statusConfig[form.displayStatus].classes]"
+              >
+                <span
+                  :class="['h-1.5 w-1.5 rounded-full', statusConfig[form.displayStatus].dot]"
+                  aria-hidden="true"
+                />
+                {{ statusConfig[form.displayStatus].label }}
               </span>
             </td>
             <td class="px-6 py-4">
@@ -228,12 +266,14 @@ const handleRowKeydown = (event: KeyboardEvent, id: string) => {
             <td class="px-6 py-4 text-[var(--color-ink-2)]">{{ form.consultationReason || '—' }}</td>
             <td class="px-6 py-4 text-right">
               <RouterLink
+                v-if="!form.isSessionOnly"
                 :to="`/dashboard/${form.id}`"
                 class="inline-flex items-center rounded-[var(--r-sm)] px-2 py-1 text-sm font-medium text-primary underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/45"
                 @click.stop
               >
                 Voir
               </RouterLink>
+              <span v-else class="text-[11.5px] text-[var(--color-muted-strong)]">En attente</span>
             </td>
           </tr>
         </tbody>

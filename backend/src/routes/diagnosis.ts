@@ -587,25 +587,72 @@ diagnosisRouter.get('/:id/pdf', async (req: Request, res: Response) => {
 diagnosisRouter.get('/', authenticateToken, async (req: AuthRequest, res: Response) => {
   try {
     const doctorId = req.user?.id;
-    const list = await db.select().from(diagnosis)
+
+    // All diagnosis records (completed + in_progress), excluding templates
+    const diagnosisList = await db.select().from(diagnosis)
       .leftJoin(patientSessions, eq(diagnosis.sessionId, patientSessions.id))
       .where(and(
         eq(diagnosis.doctorId, doctorId!),
         ne(diagnosis.status, 'template'),
-        ne(diagnosis.status, 'pending_response'),
       ))
       .orderBy(desc(diagnosis.createdAt));
 
-    // Enrich childFirstName from session.patientFirstName when it's missing/N/A
-    const enriched = list.map(({ formulaires: d, patient_sessions: s }) => {
+    // Session IDs already covered by a diagnosis record
+    const coveredSessionIds = new Set(
+      diagnosisList.map(({ patient_sessions: s }) => s?.id).filter(Boolean),
+    );
+
+    // Sessions that were sent but never opened (no diagnosis at all)
+    const allSessions = await db.select().from(patientSessions)
+      .where(eq(patientSessions.doctorId, doctorId!));
+
+    const unlinkedSessions = allSessions.filter(s => !coveredSessionIds.has(s.id));
+
+    const resolveDisplayStatus = (status: string | null) => {
+      if (!status || status === 'new') return 'completed';
+      if (status === 'pending_response') return 'in_progress';
+      return 'completed';
+    };
+
+    const diagnosisItems = diagnosisList.map(({ formulaires: d, patient_sessions: s }) => {
       const hasName = d.childFirstName && d.childFirstName !== 'N/A';
       return {
         ...d,
         childFirstName: hasName ? d.childFirstName : (s?.patientFirstName ?? d.childFirstName),
+        patientEmail: s?.patientEmail ?? null,
+        displayStatus: resolveDisplayStatus(d.status),
+        _isSessionOnly: false,
       };
     });
 
-    res.json(enriched);
+    const sessionItems = unlinkedSessions.map(s => ({
+      id: s.id,
+      createdAt: s.createdAt,
+      childFirstName: s.patientFirstName ?? null,
+      childLastName: null,
+      childBirthDate: null,
+      consultationReason: null,
+      worry: null,
+      status: 'session_pending',
+      triageLevel: null,
+      triageScore: null,
+      aiSynthesis: null,
+      sessionId: s.id,
+      doctorId: s.doctorId,
+      formTemplateId: s.formTemplateId ?? null,
+      customAnswers: null,
+      childId: null,
+      nir: null,
+      patientEmail: s.patientEmail ?? null,
+      displayStatus: 'pending' as const,
+      _isSessionOnly: true,
+    }));
+
+    const combined = [...diagnosisItems, ...sessionItems].sort(
+      (a, b) => new Date(b.createdAt!).getTime() - new Date(a.createdAt!).getTime(),
+    );
+
+    res.json(combined);
   } catch (error) {
     console.error("Détail de l'erreur", error);
     res.status(500).json({ error: 'Erreur lecture base de données' });
