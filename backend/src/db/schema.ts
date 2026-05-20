@@ -165,6 +165,7 @@ export const diagnosis_question_table = pgTable('diagnosis_question', {
   question: text('question').notNull(),
   description: text('description'),
   type: question_type_enum().notNull(),
+  required: boolean('required').default(false)
 })
 
 export const diagnosis_question_proposition_table = pgTable('diagnosis_question_proposition', {
@@ -179,7 +180,7 @@ export const diagnosis_question_proposition_table = pgTable('diagnosis_question_
 export const response_table = pgTable('response', {
   id: uuid('id').defaultRandom().primaryKey(),
   createdAt: timestamp('created_at').defaultNow(),
-  answeredAt: timestamp('created_at'),
+  answeredAt: timestamp('answered_at'),
   diagnosis_id: uuid('diagnosis_id').references(() => diagnosis.id)
 })
 
