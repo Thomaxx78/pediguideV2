@@ -103,12 +103,41 @@ function renderHtml(
                          letter-spacing:-0.3px;">
                 ${title}
               </p>
-              <p style="margin:0 0 24px;font-size:15px;color:#4A5568;line-height:1.6;">
+              <p style="margin:0 0 20px;font-size:15px;color:#4A5568;line-height:1.6;">
                 ${greeting}
               </p>
-              <p style="margin:0 0 32px;font-size:15px;color:#4A5568;line-height:1.6;">
+              <p style="margin:0 0 28px;font-size:15px;color:#4A5568;line-height:1.6;">
                 ${intro}
               </p>
+
+              <!-- Phrases rassurantes -->
+              <table width="100%" cellpadding="0" cellspacing="0" role="presentation"
+                     style="margin-bottom:28px;">
+                <tr>
+                  <td style="padding:4px 0;">
+                    <span style="color:#4A9B8E;font-size:14px;font-weight:700;">✓</span>
+                    <span style="color:#4A5568;font-size:14px;margin-left:8px;">
+                      Rapide — moins de 3 minutes, questions simples
+                    </span>
+                  </td>
+                </tr>
+                <tr>
+                  <td style="padding:4px 0;">
+                    <span style="color:#4A9B8E;font-size:14px;font-weight:700;">✓</span>
+                    <span style="color:#4A5568;font-size:14px;margin-left:8px;">
+                      Aucune connaissance médicale requise — répondez simplement ce que vous observez
+                    </span>
+                  </td>
+                </tr>
+                <tr>
+                  <td style="padding:4px 0;">
+                    <span style="color:#4A9B8E;font-size:14px;font-weight:700;">✓</span>
+                    <span style="color:#4A5568;font-size:14px;margin-left:8px;">
+                      Vos réponses permettent au médecin d'arriver préparé — moins de stress pour vous
+                    </span>
+                  </td>
+                </tr>
+              </table>
 
               <!-- CTA -->
               <table width="100%" cellpadding="0" cellspacing="0" role="presentation">
@@ -126,7 +155,7 @@ function renderHtml(
               </table>
 
               <!-- Lien de secours -->
-              <p style="margin:24px 0 0;font-size:12px;color:#9CA3AF;text-align:center;
+              <p style="margin:16px 0 0;font-size:12px;color:#9CA3AF;text-align:center;
                          line-height:1.6;">
                 Le bouton ne fonctionne pas ?
                 <a href="${formUrl}" style="color:#4A9B8E;text-decoration:underline;">
@@ -137,15 +166,41 @@ function renderHtml(
               <!-- Séparateur -->
               <hr style="border:none;border-top:1px solid #F0F0E8;margin:28px 0;" />
 
+              <!-- Encarts rassurants -->
+              <table width="100%" cellpadding="0" cellspacing="0" role="presentation"
+                     style="margin-bottom:16px;">
+                <tr>
+                  <td width="48%" style="background-color:#F6F9F8;border-radius:10px;
+                                          padding:14px 16px;vertical-align:top;">
+                    <p style="margin:0 0 4px;font-size:12px;font-weight:700;color:#182245;">
+                      Confidentiel
+                    </p>
+                    <p style="margin:0;font-size:12px;color:#4A5568;line-height:1.5;">
+                      Vos réponses sont visibles uniquement par votre médecin.
+                    </p>
+                  </td>
+                  <td width="4%"></td>
+                  <td width="48%" style="background-color:#F6F9F8;border-radius:10px;
+                                          padding:14px 16px;vertical-align:top;">
+                    <p style="margin:0 0 4px;font-size:12px;font-weight:700;color:#182245;">
+                      Pas de bonne ou mauvaise réponse
+                    </p>
+                    <p style="margin:0;font-size:12px;color:#4A5568;line-height:1.5;">
+                      Décrivez simplement ce que vous avez observé.
+                    </p>
+                  </td>
+                </tr>
+              </table>
+
               <!-- Info sécurité -->
               <table width="100%" cellpadding="0" cellspacing="0" role="presentation">
                 <tr>
-                  <td style="background-color:#F6F9F8;border-radius:10px;
-                              border-left:3px solid #4A9B8E;padding:12px 16px;">
+                  <td style="background-color:#FFF8F6;border-radius:10px;
+                              border-left:3px solid #E79276;padding:12px 16px;">
                     <p style="margin:0;font-size:12px;color:#4A5568;line-height:1.6;">
-                      <strong style="color:#182245;">Lien sécurisé et temporaire</strong>
-                      — Ce questionnaire est personnel. Le lien expire dans 7 jours.
-                      Vos réponses sont transmises uniquement à votre médecin.
+                      <strong style="color:#182245;">Lien personnel et sécurisé</strong>
+                      — Ce questionnaire vous a été envoyé par votre médecin.
+                      Le lien expire dans 7 jours. Ne le partagez pas.
                     </p>
                   </td>
                 </tr>
