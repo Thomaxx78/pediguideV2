@@ -530,6 +530,44 @@ const vaccinationsDisplay = computed(() => {
         </div>
       </section>
 
+      <!-- Custom template answers -->
+      <section
+        v-else-if="form.customAnswers && Object.keys(form.customAnswers).length"
+        aria-labelledby="custom-data-title"
+        class="rounded-[var(--r-lg)] border border-[var(--color-line)] bg-[var(--color-surface)] p-6"
+      >
+        <h2
+          id="custom-data-title"
+          class="font-display text-xl font-medium tracking-[-0.014em] text-[var(--color-ink)]"
+        >
+          Réponses du parent
+        </h2>
+        <p class="mt-1 text-sm text-[var(--color-ink-2)]">
+          Formulaire personnalisé — réponses transmises par le parent.
+        </p>
+        <dl class="mt-5 grid gap-x-6 gap-y-5 sm:grid-cols-2">
+          <div v-for="(answer, label) in form.customAnswers" :key="label" class="min-w-0">
+            <dt class="text-[11px] font-medium uppercase tracking-wide text-[var(--color-muted-strong)] truncate">{{ label }}</dt>
+            <dd class="mt-1 text-[15px] text-[var(--color-ink)]">
+              <template v-if="Array.isArray(answer)">
+                <span v-if="answer.length === 0" class="text-[var(--color-muted-strong)]">Non renseigné</span>
+                <ul v-else class="flex flex-wrap gap-1.5">
+                  <li
+                    v-for="item in answer"
+                    :key="item"
+                    class="rounded-full border border-[var(--color-line)] bg-[var(--color-surface-2)] px-3 py-1 text-[13px]"
+                  >{{ item }}</li>
+                </ul>
+              </template>
+              <template v-else>
+                <span v-if="!answer" class="text-[var(--color-muted-strong)]">Non renseigné</span>
+                <span v-else>{{ answer }}</span>
+              </template>
+            </dd>
+          </div>
+        </dl>
+      </section>
+
       <!-- Legacy fallback — for old submissions before the v2 redesign -->
       <section
         v-else

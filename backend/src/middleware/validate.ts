@@ -21,6 +21,8 @@ export function validate(schema: ZodSchema) {
 // ── Schémas de validation ─────────────────────────────────────────────────────
 
 export const registerSchema = z.object({
+  firstName: z.string().min(1, 'Le prénom est requis').max(100).trim(),
+  lastName: z.string().min(1, 'Le nom est requis').max(100).trim(),
   rpps: z
     .string()
     .min(11, 'Le numéro RPPS doit contenir 11 chiffres')

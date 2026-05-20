@@ -8,6 +8,8 @@ import api from '@/services/api'
 
 const router = useRouter()
 
+const firstName = ref('')
+const lastName = ref('')
 const rpps = ref('')
 const email = ref('')
 const password = ref('')
@@ -20,6 +22,14 @@ async function handleSubmit(e: Event) {
   e.preventDefault()
   error.value = ''
 
+  if (!firstName.value.trim()) {
+    error.value = 'Le prénom est requis.'
+    return
+  }
+  if (!lastName.value.trim()) {
+    error.value = 'Le nom est requis.'
+    return
+  }
   if (!/^\d{11}$/.test(rpps.value.replace(/\s/g, ''))) {
     error.value = 'Le numéro RPPS doit comporter 11 chiffres.'
     return
@@ -45,6 +55,8 @@ async function handleSubmit(e: Event) {
 
   try {
     await api.auth.register({
+      firstName: firstName.value.trim(),
+      lastName: lastName.value.trim(),
       rpps: rpps.value,
       email: email.value,
       password: password.value,
@@ -77,6 +89,35 @@ async function handleSubmit(e: Event) {
 <template>
   <form class="space-y-5" @submit="handleSubmit" novalidate>
     <FieldError v-if="error" :errors="[error]" />
+
+    <div class="grid gap-4 sm:grid-cols-2">
+      <Field>
+        <FieldLabel for="first-name" required>Prénom</FieldLabel>
+        <Input
+          id="first-name"
+          v-model="firstName"
+          type="text"
+          name="firstName"
+          autocomplete="given-name"
+          placeholder="Claire"
+          required
+          :disabled="loading"
+        />
+      </Field>
+      <Field>
+        <FieldLabel for="last-name" required>Nom</FieldLabel>
+        <Input
+          id="last-name"
+          v-model="lastName"
+          type="text"
+          name="lastName"
+          autocomplete="family-name"
+          placeholder="Reynaud"
+          required
+          :disabled="loading"
+        />
+      </Field>
+    </div>
 
     <Field>
       <FieldLabel for="rpps-number" required>Numéro RPPS</FieldLabel>

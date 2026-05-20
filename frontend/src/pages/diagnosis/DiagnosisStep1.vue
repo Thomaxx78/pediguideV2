@@ -33,29 +33,75 @@ const onGenderChange = (value: string) => {
         Parlons un peu de votre enfant
       </h1>
       <p class="text-[15px] text-[var(--color-ink-2)]">
-        Ces informations aident le pédiatre à adapter son évaluation.
+        Ces informations aident le professionnel de santé à adapter son évaluation.
       </p>
     </header>
 
     <div class="space-y-5">
-      <!-- First name -->
+      <!-- First name + Last name -->
+      <div class="grid grid-cols-2 gap-3">
+        <Field>
+          <FieldLabel for="child-first-name" required>Prénom</FieldLabel>
+          <Input
+            id="child-first-name"
+            v-model="form.childFirstName"
+            name="childFirstName"
+            autocomplete="given-name"
+            :aria-invalid="Boolean(errors.childFirstName)"
+            :aria-describedby="shouldShowError('childFirstName') ? errorId('childFirstName') : undefined"
+            @blur="emit('field-blur', 'childFirstName')"
+            @input="emit('field-input', 'childFirstName')"
+          />
+          <FieldError
+            v-if="shouldShowError('childFirstName')"
+            :id="errorId('childFirstName')"
+            :errors="[errors.childFirstName]"
+          />
+        </Field>
+
+        <Field>
+          <FieldLabel for="child-last-name" required>Nom</FieldLabel>
+          <Input
+            id="child-last-name"
+            v-model="form.childLastName"
+            name="childLastName"
+            autocomplete="family-name"
+            :aria-invalid="Boolean(errors.childLastName)"
+            :aria-describedby="shouldShowError('childLastName') ? errorId('childLastName') : undefined"
+            @blur="emit('field-blur', 'childLastName')"
+            @input="emit('field-input', 'childLastName')"
+          />
+          <FieldError
+            v-if="shouldShowError('childLastName')"
+            :id="errorId('childLastName')"
+            :errors="[errors.childLastName]"
+          />
+        </Field>
+      </div>
+
+      <!-- NIR (optional) -->
       <Field>
-        <FieldLabel for="child-first-name" required>Prénom</FieldLabel>
+        <FieldLabel for="child-nir" required>Numéro de sécurité sociale</FieldLabel>
         <Input
-          id="child-first-name"
-          v-model="form.childFirstName"
-          name="childFirstName"
-          autocomplete="given-name"
-          :aria-invalid="Boolean(errors.childFirstName)"
-          :aria-describedby="shouldShowError('childFirstName') ? errorId('childFirstName') : undefined"
-          @blur="emit('field-blur', 'childFirstName')"
-          @input="emit('field-input', 'childFirstName')"
+          id="child-nir"
+          v-model="form.nir"
+          name="nir"
+          type="text"
+          inputmode="numeric"
+          maxlength="15"
+          autocomplete="off"
+          placeholder="Ex : 2 05 12 75 123 456 78"
+          :aria-invalid="Boolean(errors.nir)"
+          :aria-describedby="shouldShowError('nir') ? errorId('nir') : undefined"
+          @blur="emit('field-blur', 'nir')"
+          @input="emit('field-input', 'nir')"
         />
         <FieldError
-          v-if="shouldShowError('childFirstName')"
-          :id="errorId('childFirstName')"
-          :errors="[errors.childFirstName]"
+          v-if="shouldShowError('nir')"
+          :id="errorId('nir')"
+          :errors="[errors.nir]"
         />
+        <p class="text-xs text-[var(--color-muted-strong)]">Permet au professionnel de santé de regrouper toutes les consultations de votre enfant.</p>
       </Field>
 
       <!-- Birth date -->

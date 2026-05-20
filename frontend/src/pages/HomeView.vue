@@ -131,7 +131,7 @@ const goToParentDemo = () => router.push('/pre-consultation')
             </h2>
           </div>
           <p class="max-w-[360px] text-[14.5px] text-[var(--color-ink-2)] md:text-right">
-            Conçu avec des pédiatres libéraux pour des questions qui changent quelque chose à la consultation.
+            Conçu avec des professionnels de santé libéraux pour des questions qui changent quelque chose à la consultation.
           </p>
         </header>
 

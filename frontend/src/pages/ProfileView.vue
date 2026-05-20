@@ -2,6 +2,8 @@
 import { computed, onMounted, ref } from 'vue'
 import { RouterLink, useRouter } from 'vue-router'
 import { Button } from '@/components/ui/button'
+import { Field, FieldError, FieldLabel } from '@/components/ui/field'
+import { Input } from '@/components/ui/input'
 import KycVerification from '@/components/KycVerification.vue'
 import api, { isAuthenticated } from '@/services/api'
 
@@ -11,6 +13,8 @@ interface DoctorProfile {
   id: string
   email: string
   rpps: string
+  firstName?: string | null
+  lastName?: string | null
   kycStatus: 'verified' | 'rejected' | 'pending'
   accountStatus: string
   createdAt: string
@@ -19,6 +23,39 @@ interface DoctorProfile {
 const profile = ref<DoctorProfile | null>(null)
 const isLoading = ref(true)
 const error = ref<string | null>(null)
+
+// Identity edit form
+const editFirstName = ref('')
+const editLastName = ref('')
+const isSaving = ref(false)
+const saveError = ref('')
+const saveSuccess = ref(false)
+
+const saveProfile = async () => {
+  if (!editFirstName.value.trim() || !editLastName.value.trim()) {
+    saveError.value = 'Le prénom et le nom sont requis.'
+    return
+  }
+  isSaving.value = true
+  saveError.value = ''
+  saveSuccess.value = false
+  try {
+    const res = await api.doctors.updateMe({
+      firstName: editFirstName.value.trim(),
+      lastName: editLastName.value.trim(),
+    }) as { success: boolean; doctor?: { firstName?: string; lastName?: string } }
+    if (res.success && res.doctor && profile.value) {
+      profile.value.firstName = res.doctor.firstName ?? null
+      profile.value.lastName = res.doctor.lastName ?? null
+      saveSuccess.value = true
+      setTimeout(() => { saveSuccess.value = false }, 3000)
+    }
+  } catch (e: unknown) {
+    saveError.value = e instanceof Error ? e.message : 'Erreur lors de la sauvegarde.'
+  } finally {
+    isSaving.value = false
+  }
+}
 
 const accountStatusLabel = computed(() => {
   if (!profile.value) return ''
@@ -55,10 +92,14 @@ onMounted(async () => {
         id: response.doctor.id,
         email: response.doctor.email,
         rpps: response.doctor.rpps,
+        firstName: response.doctor.firstName ?? null,
+        lastName: response.doctor.lastName ?? null,
         kycStatus: response.doctor.kycStatus || 'pending',
         accountStatus: response.doctor.accountStatus || 'pending_validation',
         createdAt: response.doctor.createdAt,
       }
+      editFirstName.value = response.doctor.firstName ?? ''
+      editLastName.value = response.doctor.lastName ?? ''
     }
   } catch (err: unknown) {
     const errorObj = err as Error
@@ -114,6 +155,54 @@ onMounted(async () => {
       <div class="space-y-6">
         <!-- KYC card -->
         <KycVerification :kyc-status="profile.kycStatus" />
+
+        <!-- Identity edit -->
+        <section class="rounded-[var(--r-lg)] border border-[var(--color-line)] bg-[var(--color-surface)] p-6">
+          <header>
+            <h2 class="font-display text-xl font-medium tracking-[-0.014em] text-[var(--color-ink)]">
+              Identité
+            </h2>
+            <p class="mt-1 text-sm text-[var(--color-ink-2)]">
+              Votre nom tel qu'il apparaît sur les formulaires envoyés aux parents.
+            </p>
+          </header>
+
+          <form class="mt-5 space-y-4" novalidate @submit.prevent="saveProfile">
+            <div class="grid gap-4 sm:grid-cols-2">
+              <Field>
+                <FieldLabel for="profile-first-name" required>Prénom</FieldLabel>
+                <Input
+                  id="profile-first-name"
+                  v-model="editFirstName"
+                  type="text"
+                  autocomplete="given-name"
+                  :disabled="isSaving"
+                />
+              </Field>
+              <Field>
+                <FieldLabel for="profile-last-name" required>Nom</FieldLabel>
+                <Input
+                  id="profile-last-name"
+                  v-model="editLastName"
+                  type="text"
+                  autocomplete="family-name"
+                  :disabled="isSaving"
+                />
+              </Field>
+            </div>
+
+            <FieldError v-if="saveError" :errors="[saveError]" />
+
+            <div class="flex items-center gap-3">
+              <Button type="submit" size="sm" :disabled="isSaving">
+                {{ isSaving ? 'Sauvegarde…' : 'Enregistrer' }}
+              </Button>
+              <p v-if="saveSuccess" class="text-sm text-[var(--color-sev-1)]">
+                Modifications enregistrées.
+              </p>
+            </div>
+          </form>
+        </section>
 
         <!-- Account info -->
         <section class="rounded-[var(--r-lg)] border border-[var(--color-line)] bg-[var(--color-surface)] p-6">

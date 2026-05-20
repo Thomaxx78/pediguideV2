@@ -7,6 +7,7 @@ import {
   diagnosis,
   formTemplates,
   children,
+  doctors,
   DEFAULT_QUESTIONS,
   diagnosis_question_proposition_table,
   diagnosis_question_table,
@@ -324,7 +325,7 @@ sessionsRouter.post('/', authenticateToken, async (req: AuthRequest, res: Respon
     }).returning();
 
     const baseUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
-    const formUrl = `${baseUrl}/form/${token}`;
+    const formUrl = `${baseUrl}/pre-consultation/${token}`;
 
     res.json({ session, formUrl });
   } catch (error: any) {
@@ -359,27 +360,32 @@ sessionsRouter.get('/', authenticateToken, async (req: AuthRequest, res: Respons
 sessionsRouter.get('/:token', async (req, res: Response): Promise<any> => {
   try {
     const token = String(req.params.token || '');
-    const [session] = await db.select({
+    const [row] = await db.select({
       id: patientSessions.id,
       doctorId: patientSessions.doctorId,
       status: patientSessions.status,
       expiresAt: patientSessions.expiresAt,
       patientFirstName: patientSessions.patientFirstName,
       formTemplateId: patientSessions.formTemplateId,
-    }).from(patientSessions).where(eq(patientSessions.patientToken, token)).limit(1);
+      appointmentAt: patientSessions.appointmentAt,
+      doctorFirstName: doctors.firstName,
+      doctorLastName: doctors.lastName,
+    }).from(patientSessions)
+      .leftJoin(doctors, eq(patientSessions.doctorId, doctors.id))
+      .where(eq(patientSessions.patientToken, token)).limit(1);
 
-    if (!session) return res.status(404).json({ error: 'Lien introuvable' });
-    if (new Date() > new Date(session.expiresAt)) {
+    if (!row) return res.status(404).json({ error: 'Lien introuvable' });
+    if (new Date() > new Date(row.expiresAt)) {
       return res.status(410).json({ error: 'Ce lien a expiré' });
     }
-    if (session.status === 'completed') {
+    if (row.status === 'completed') {
       return res.status(409).json({ error: 'Ce formulaire a déjà été rempli' });
     }
 
-    const response = await ensureSessionResponse(session);
+    const response = await ensureSessionResponse(row);
 
     res.json({
-      ...session,
+      ...row,
       diagnosisId: response.diagnosisId,
       responseId: response.responseId,
       questions: response.questions,
@@ -431,6 +437,18 @@ sessionsRouter.post('/:token/respond', async (req, res: Response): Promise<any> 
       }
     }
 
+    const isCustom = !!session.formTemplateId;
+    // Build labeled answers keyed by question label (for display in doctor dashboard)
+    let labeledCustomAnswers: Record<string, string | string[]> | null = null;
+    if (isCustom) {
+      labeledCustomAnswers = {};
+      for (const q of questions) {
+        if (answers[q.id] !== undefined) {
+          labeledCustomAnswers[q.label] = answers[q.id];
+        }
+      }
+    }
+
     const childBirthDate = data.childBirthDate || getAnswerByLabel(answers, questions, /naissance/i) || 'N/A';
     const triage = computeTriageScore({
       clinicalSigns: (data.clinicalSigns || getArrayAnswerByLabel(answers, questions, /signes cliniques/i)) as string[],
@@ -442,7 +460,7 @@ sessionsRouter.post('/:token/respond', async (req, res: Response): Promise<any> 
 
     const record = await db.transaction(async (tx) => {
       const [createdDiagnosis] = await tx.insert(diagnosis).values({
-        childFirstName: data.childFirstName || getAnswerByLabel(answers, questions, /prénom/i) || null,
+        childFirstName: data.childFirstName || getAnswerByLabel(answers, questions, /prénom/i) || session.patientFirstName || null,
         childLastName: data.childLastName || getAnswerByLabel(answers, questions, /nom/i) || null,
         childBirthDate,
         consultationReason: data.consultationReason || getAnswerByLabel(answers, questions, /motif/i) || null,
@@ -452,10 +470,27 @@ sessionsRouter.post('/:token/respond', async (req, res: Response): Promise<any> 
         worryLevel: data.worryLevel || getAnswerByLabel(answers, questions, /inquiétude/i) || null,
         actionsTaken: (data.actionsTaken || getArrayAnswerByLabel(answers, questions, /actions/i)) as string[],
         additionalNotes: data.additionalNotes || getAnswerByLabel(answers, questions, /complémentaires|message libre/i) || '',
+
+        weight: data.weight ?? null,
+        height: data.height ?? null,
+        gender: data.gender ?? null,
+        symptoms: (data.symptoms ?? []) as string[],
+        symptomOther: data.symptomOther ?? null,
+        symptomTimeline: data.symptomTimeline ?? {},
+        symptomSeverity: data.symptomSeverity ?? {},
+        allergies: (data.allergies ?? []) as string[],
+        noAllergies: data.noAllergies ?? false,
+        treatments: data.treatments ?? null,
+        antecedents: (data.antecedents ?? []) as string[],
+        noAntecedents: data.noAntecedents ?? false,
+        vaccinations: data.vaccinations ?? null,
+        worry: data.worry ?? null,
+        photoName: data.photoName ?? null,
+
         doctorId: session.doctorId,
         sessionId: session.id,
         formTemplateId: session.formTemplateId || null,
-        customAnswers: answers,
+        customAnswers: isCustom ? (labeledCustomAnswers ?? answers) : null,
         childId,
         nir,
         triageLevel: triage.level,

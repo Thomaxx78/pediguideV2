@@ -3,6 +3,16 @@ import { onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { Button } from '@/components/ui/button'
 import api from '@/services/api'
+import {
+  symptomLabelById,
+  allergyOptions,
+  antecedentOptions,
+} from './diagnosis/diagnosisOptions'
+
+const allergyLabelById = Object.fromEntries(allergyOptions.map(o => [o.id, o.label]))
+const antecedentLabelById = Object.fromEntries(antecedentOptions.map(o => [o.id, o.label]))
+
+const resolveLabel = (map: Record<string, string>, id: string) => map[id] ?? id
 
 const route = useRoute()
 const router = useRouter()
@@ -20,11 +30,13 @@ interface AiSynthesis {
 interface Consultation {
   id: string
   createdAt: string
-  consultationReason: string
-  worryLevel: string
-  duration: string
+  consultationReason: string | null
+  worryLevel: string | null
+  duration: string | null
   clinicalSigns: string[] | null
   behaviorChanges: string[] | null
+  weight: string | null
+  height: string | null
   aiSynthesis: AiSynthesis | null
   status: string
   triageLevel: 'rouge' | 'orange' | 'jaune' | 'vert' | null
@@ -33,6 +45,15 @@ interface Consultation {
 interface RecurringSymptom {
   symptom: string
   count: number
+}
+
+interface MedicalProfile {
+  allergies: string[]
+  noAllergies: boolean
+  treatments: string | null
+  antecedents: string[]
+  noAntecedents: boolean
+  vaccinations: string | null
 }
 
 interface ChildDossier {
@@ -46,6 +67,7 @@ interface ChildDossier {
   trend: 'aggravation' | 'amelioration' | 'stable' | null
   consultations: Consultation[]
   recurringSymptoms: RecurringSymptom[]
+  medicalProfile: MedicalProfile | null
 }
 
 const dossier = ref<ChildDossier | null>(null)
@@ -102,6 +124,12 @@ const trendConfig: Record<'aggravation' | 'amelioration' | 'stable', { label: st
     tone: 'text-[var(--color-ink-2)] bg-[var(--color-surface-2)] border-[var(--color-line)]',
     icon: '→',
   },
+}
+
+const vaccinationLabel: Record<string, string> = {
+  oui: 'À jour',
+  non: 'Non à jour',
+  'sais-pas': 'Non renseigné',
 }
 
 onMounted(async () => {
@@ -202,11 +230,68 @@ onMounted(async () => {
             :key="item.symptom"
             class="inline-flex items-center gap-1.5 rounded-full border border-[color-mix(in_oklab,var(--color-sev-3)_30%,transparent)] bg-[color-mix(in_oklab,var(--color-sev-3)_10%,var(--color-bg))] px-2.5 py-1 text-[11.5px] font-medium text-[var(--color-sev-3)]"
           >
-            {{ item.symptom }}
+            {{ resolveLabel(symptomLabelById, item.symptom) }}
             <span class="text-[11px] opacity-70">{{ item.count }}×</span>
           </span>
         </div>
       </div>
+
+      <!-- Profil médical -->
+      <section
+        v-if="dossier.medicalProfile"
+        class="rounded-[var(--r-lg)] border border-[var(--color-line)] bg-[var(--color-surface)] p-5"
+      >
+        <p class="mb-4 text-[11px] font-medium uppercase tracking-[0.08em] text-[var(--color-muted-strong)]">
+          Profil médical
+        </p>
+        <dl class="grid gap-x-6 gap-y-4 sm:grid-cols-2">
+          <!-- Allergies -->
+          <div>
+            <dt class="text-[11px] font-medium uppercase tracking-wide text-[var(--color-muted-strong)]">Allergies</dt>
+            <dd class="mt-1">
+              <span v-if="dossier.medicalProfile.noAllergies" class="text-[13.5px] text-[var(--color-ink-2)]">Aucune allergie connue</span>
+              <div v-else-if="dossier.medicalProfile.allergies.length" class="flex flex-wrap gap-1.5 mt-1">
+                <span
+                  v-for="a in dossier.medicalProfile.allergies" :key="a"
+                  class="rounded-full border border-[color-mix(in_oklab,var(--color-sev-5)_25%,transparent)] bg-[color-mix(in_oklab,var(--color-sev-5)_8%,var(--color-bg))] px-2.5 py-0.5 text-[12px] font-medium text-[var(--color-sev-5)]"
+                >{{ resolveLabel(allergyLabelById, a) }}</span>
+              </div>
+              <span v-else class="text-[13.5px] text-[var(--color-muted-strong)]">—</span>
+            </dd>
+          </div>
+
+          <!-- Vaccinations -->
+          <div>
+            <dt class="text-[11px] font-medium uppercase tracking-wide text-[var(--color-muted-strong)]">Vaccinations</dt>
+            <dd class="mt-1 text-[13.5px] text-[var(--color-ink)]">
+              {{ dossier.medicalProfile.vaccinations ? vaccinationLabel[dossier.medicalProfile.vaccinations] ?? dossier.medicalProfile.vaccinations : '—' }}
+            </dd>
+          </div>
+
+          <!-- Traitements en cours -->
+          <div>
+            <dt class="text-[11px] font-medium uppercase tracking-wide text-[var(--color-muted-strong)]">Traitements en cours</dt>
+            <dd class="mt-1 text-[13.5px] text-[var(--color-ink)]">
+              {{ dossier.medicalProfile.treatments || '—' }}
+            </dd>
+          </div>
+
+          <!-- Antécédents -->
+          <div>
+            <dt class="text-[11px] font-medium uppercase tracking-wide text-[var(--color-muted-strong)]">Antécédents</dt>
+            <dd class="mt-1">
+              <span v-if="dossier.medicalProfile.noAntecedents" class="text-[13.5px] text-[var(--color-ink-2)]">Aucun antécédent</span>
+              <div v-else-if="dossier.medicalProfile.antecedents.length" class="flex flex-wrap gap-1.5 mt-1">
+                <span
+                  v-for="a in dossier.medicalProfile.antecedents" :key="a"
+                  class="rounded-full border border-[var(--color-line)] bg-[var(--color-surface-2)] px-2.5 py-0.5 text-[12px] text-[var(--color-ink)]"
+                >{{ resolveLabel(antecedentLabelById, a) }}</span>
+              </div>
+              <span v-else class="text-[13.5px] text-[var(--color-muted-strong)]">—</span>
+            </dd>
+          </div>
+        </dl>
+      </section>
 
       <!-- Timeline -->
       <section>
@@ -231,8 +316,13 @@ onMounted(async () => {
                   <p class="text-[14px] font-medium text-[var(--color-ink)]">
                     {{ formatDate(consult.createdAt) }}
                   </p>
-                  <p class="mt-0.5 text-[13.5px] text-[var(--color-ink-2)]">
+                  <p v-if="consult.consultationReason" class="mt-0.5 text-[13.5px] text-[var(--color-ink-2)]">
                     {{ consult.consultationReason }}
+                  </p>
+                  <p v-if="consult.weight || consult.height" class="mt-0.5 text-[12px] text-[var(--color-muted-strong)]">
+                    <span v-if="consult.weight">{{ consult.weight }} kg</span>
+                    <span v-if="consult.weight && consult.height"> · </span>
+                    <span v-if="consult.height">{{ consult.height }} cm</span>
                   </p>
                 </div>
                 <div class="flex shrink-0 flex-col items-end gap-1.5">

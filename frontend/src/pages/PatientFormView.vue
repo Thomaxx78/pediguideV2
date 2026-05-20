@@ -33,6 +33,7 @@ const isChecked = (id: string, option: string) => ((answers.value[id] as string[
 
 const validate = () => {
   const errs: Record<string, string> = {}
+  if (!nir.value.trim()) errs['nir'] = 'Le numéro de sécurité sociale est requis.'
   for (const q of questions.value) {
     if (!q.required) continue
     const val = answers.value[q.id]
@@ -113,7 +114,7 @@ onMounted(async () => {
           <div class="space-y-2 rounded-lg border border-border/50 bg-muted/30 p-4">
             <label for="nir" class="block text-sm font-medium text-foreground">
               Numéro de sécurité sociale de l'enfant
-              <span class="ml-1 text-xs font-normal text-muted-foreground">(optionnel)</span>
+              <span class="text-destructive ml-0.5" aria-hidden="true">*</span>
             </label>
             <input
               id="nir"
@@ -126,6 +127,7 @@ onMounted(async () => {
             <p class="text-xs text-muted-foreground">
               Ce numéro permet à votre médecin de regrouper les consultations de votre enfant dans un même dossier.
             </p>
+            <p v-if="errors['nir']" class="text-xs text-destructive" role="alert">{{ errors['nir'] }}</p>
           </div>
 
           <div v-for="q in questions" :key="q.id" class="space-y-2">

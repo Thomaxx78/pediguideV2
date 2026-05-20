@@ -9,7 +9,7 @@ export const synthesizeRouter = Router();
 const AI_MODEL = 'llama-3.3-70b-versatile';
 const PROMPT_VERSION = '2026-05-20-v1';
 
-const SYSTEM_PROMPT = `Tu es un assistant médical qui aide les pédiatres à préparer leurs consultations.
+const SYSTEM_PROMPT = `Tu es un assistant médical qui aide les professionnels de santé à préparer leurs consultations pédiatriques.
 À partir des réponses d'un questionnaire pré-consultation rempli par un parent,
 génère une synthèse clinique structurée et concise.
 

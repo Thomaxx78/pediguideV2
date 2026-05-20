@@ -69,6 +69,8 @@ export interface DiagnosisRecord {
   aiSynthesis?: AiSynthesis | null
   aiSynthesisVersions?: AiSynthesisVersion[]
   triageLevel?: TriageLevel | null
+  formTemplateId?: string | null
+  customAnswers?: Record<string, string | string[]> | null
 }
 
 export type TriageLevel = 'rouge' | 'orange' | 'jaune' | 'vert'
@@ -120,6 +122,7 @@ export interface DoctorFormDetail extends DoctorFormSummary {
    * fields populated). Used to choose which render path the detail page uses.
    */
   isLegacy: boolean
+  customAnswers: Record<string, string | string[]> | null
 }
 
 export interface DoctorFormsListParams {
@@ -135,6 +138,7 @@ const normalizeText = (value: string) =>
 const safeArray = <T>(value?: T[] | null): T[] => (Array.isArray(value) ? value : [])
 const safeRecord = <V>(value?: Record<string, V> | null): Record<string, V> =>
   value && typeof value === 'object' ? value : {}
+const clean = (value?: string | null): string => (!value || value === 'N/A' ? '' : value)
 
 /**
  * A record is "legacy" if none of the new parent-flow fields are populated.
@@ -152,9 +156,9 @@ const isLegacyRecord = (record: DiagnosisRecord): boolean => {
 
 const toSummary = (record: DiagnosisRecord): DoctorFormSummary => ({
   id: record.id,
-  patientFirstName: record.childFirstName ?? '',
-  patientLastName: record.childLastName ?? '',
-  consultationReason: record.consultationReason ?? record.worry ?? '',
+  patientFirstName: clean(record.childFirstName),
+  patientLastName: clean(record.childLastName),
+  consultationReason: clean(record.consultationReason) || clean(record.worry),
   submittedAt: record.createdAt,
   status: record.status ?? 'new',
   aiPriority: record.aiSynthesis?.niveau_priorite ?? null,
@@ -163,14 +167,14 @@ const toSummary = (record: DiagnosisRecord): DoctorFormSummary => ({
 
 const toDetail = (record: DiagnosisRecord): DoctorFormDetail => ({
   ...toSummary(record),
-  childBirthDate: record.childBirthDate ?? '',
+  childBirthDate: clean(record.childBirthDate),
 
   behaviorChanges: safeArray(record.behaviorChanges),
   clinicalSigns: safeArray(record.clinicalSigns),
-  duration: record.duration ?? '',
-  worryLevel: record.worryLevel ?? '',
+  duration: clean(record.duration),
+  worryLevel: clean(record.worryLevel),
   actionsTaken: safeArray(record.actionsTaken),
-  additionalNotes: record.additionalNotes ?? '',
+  additionalNotes: clean(record.additionalNotes),
 
   weight: record.weight ?? '',
   height: record.height ?? '',
@@ -191,6 +195,7 @@ const toDetail = (record: DiagnosisRecord): DoctorFormDetail => ({
   aiSynthesis: record.aiSynthesis ?? null,
   aiSynthesisVersions: record.aiSynthesisVersions ?? [],
   isLegacy: isLegacyRecord(record),
+  customAnswers: record.customAnswers ?? null,
 })
 
 const matchesSearch = (record: DiagnosisRecord, search: string) => {

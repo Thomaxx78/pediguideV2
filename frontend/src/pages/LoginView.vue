@@ -4,7 +4,7 @@ import AuthAside from '@/components/forms/AuthAside.vue'
 
 const asideItems = [
   { title: 'Compte vérifié manuellement', body: 'Sous 48 h ouvrées via votre numéro RPPS.' },
-  { title: 'Réservé aux professionnels', body: 'Pédiatres et médecins généralistes.' },
+  { title: 'Réservé aux professionnels', body: 'Médecins généralistes, pédiatres et autres professionnels de santé.' },
   { title: 'Sécurité renforcée', body: 'Authentification chiffrée, données HDS.' },
 ]
 </script>
@@ -17,7 +17,7 @@ const asideItems = [
         Connexion
       </p>
       <h1 class="mt-2 font-display text-[28px] font-medium tracking-[-0.02em] text-[var(--color-ink)]">
-        Espace pédiatre
+        Espace professionnel
       </h1>
       <p class="mt-2 text-[14.5px] text-[var(--color-ink-2)]">
         Entrez vos identifiants pour accéder à votre tableau de bord.
