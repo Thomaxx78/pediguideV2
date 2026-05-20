@@ -27,8 +27,12 @@ const error = ref<string | null>(null)
 
 const synthesis = ref<AiSynthesis | null>(null)
 const synthesisVersions = ref<AiSynthesisVersion[]>([])
+const activeVersionId = ref<string | null>(null)
+const previewedVersion = ref<AiSynthesisVersion | null>(null)
 const isSynthesizing = ref(false)
 const synthesisError = ref<string | null>(null)
+const isActivatingVersion = ref(false)
+const versionActionError = ref<string | null>(null)
 const isDownloadingPdf = ref(false)
 const pdfError = ref<string | null>(null)
 
@@ -53,6 +57,23 @@ const formatDate = (value: string) => {
   }).format(date)
 }
 
+const findVersionIdForSynthesis = (target: AiSynthesis) => {
+  const targetJson = JSON.stringify(target)
+  return synthesisVersions.value.find((version) => JSON.stringify(version.synthesis) === targetJson)?.id ?? null
+}
+
+const activeVersion = computed(() =>
+  synthesisVersions.value.find((version) => version.id === activeVersionId.value) ?? null
+)
+
+const displayedSynthesis = computed(() => previewedVersion.value?.synthesis ?? synthesis.value)
+
+const displayedVersionLabel = computed(() => {
+  if (previewedVersion.value) return `Aperçu version ${previewedVersion.value.version}`
+  if (activeVersion.value) return `Version active ${activeVersion.value.version}`
+  return 'Générée automatiquement'
+})
+
 const loadForm = async () => {
   if (!formId.value) {
     error.value = 'Identifiant de formulaire manquant.'
@@ -68,6 +89,7 @@ const loadForm = async () => {
     synthesisVersions.value = form.value.aiSynthesisVersions
     if (form.value.aiSynthesis) {
       synthesis.value = form.value.aiSynthesis
+      activeVersionId.value = findVersionIdForSynthesis(form.value.aiSynthesis)
     }
   } catch (err: unknown) {
     error.value = (err as Error).message || 'Impossible de charger le formulaire.'
@@ -81,6 +103,7 @@ const generateSynthesis = async () => {
   if (!formId.value) return
   isSynthesizing.value = true
   synthesisError.value = null
+  versionActionError.value = null
 
   try {
     const result = await api.diagnosis.synthesize(formId.value) as {
@@ -90,11 +113,43 @@ const generateSynthesis = async () => {
     synthesis.value = result.synthesis
     if (result.version) {
       synthesisVersions.value = [result.version, ...synthesisVersions.value]
+      activeVersionId.value = result.version.id
+      previewedVersion.value = null
     }
   } catch (err: unknown) {
     synthesisError.value = (err as Error).message || 'Erreur lors de la génération.'
   } finally {
     isSynthesizing.value = false
+  }
+}
+
+const previewVersion = (version: AiSynthesisVersion) => {
+  previewedVersion.value = version
+  versionActionError.value = null
+}
+
+const clearVersionPreview = () => {
+  previewedVersion.value = null
+  versionActionError.value = null
+}
+
+const activateVersion = async (version: AiSynthesisVersion) => {
+  if (!formId.value || version.id === activeVersionId.value) return
+  isActivatingVersion.value = true
+  versionActionError.value = null
+
+  try {
+    const result = await api.diagnosis.activateSynthesisVersion(formId.value, version.id) as {
+      synthesis: AiSynthesis
+      version: AiSynthesisVersion
+    }
+    synthesis.value = result.synthesis
+    activeVersionId.value = result.version.id
+    previewedVersion.value = null
+  } catch (err: unknown) {
+    versionActionError.value = (err as Error).message || 'Impossible d’activer cette version.'
+  } finally {
+    isActivatingVersion.value = false
   }
 }
 
@@ -119,6 +174,8 @@ onMounted(() => {
 watch(formId, () => {
   synthesis.value = null
   synthesisVersions.value = []
+  activeVersionId.value = null
+  previewedVersion.value = null
   loadForm()
 })
 </script>
@@ -160,25 +217,33 @@ watch(formId, () => {
     <template v-else>
       <!-- Bloc synthèse IA -->
       <section aria-labelledby="ai-synthesis-title">
-        <Card v-if="synthesis" class="border-2 border-primary/20 bg-primary/5">
+        <Card v-if="displayedSynthesis" class="border-2 border-primary/20 bg-primary/5">
           <CardHeader>
             <div class="flex flex-wrap items-center justify-between gap-3">
               <div>
                 <CardTitle id="ai-synthesis-title" as="h2" class="flex items-center gap-2 text-xl">
                   Synthèse IA
                 </CardTitle>
-                <CardDescription>Générée automatiquement — aide à la préparation de consultation</CardDescription>
+                <CardDescription>{{ displayedVersionLabel }}</CardDescription>
               </div>
               <span
                 class="rounded-full border px-3 py-1 text-sm font-semibold"
-                :class="priorityConfig[synthesis.niveau_priorite]?.classes"
+                :class="priorityConfig[displayedSynthesis.niveau_priorite]?.classes"
               >
-                {{ priorityConfig[synthesis.niveau_priorite]?.label }}
+                {{ priorityConfig[displayedSynthesis.niveau_priorite]?.label }}
               </span>
             </div>
           </CardHeader>
           <CardContent class="space-y-5">
             <div class="flex flex-wrap justify-end gap-2">
+              <Button
+                v-if="previewedVersion"
+                variant="outline"
+                size="sm"
+                @click="clearVersionPreview"
+              >
+                Revenir à l'active
+              </Button>
               <Button
                 variant="outline"
                 size="sm"
@@ -199,19 +264,19 @@ watch(formId, () => {
 
             <div>
               <p class="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Motif principal</p>
-              <p class="mt-1 text-sm font-medium text-foreground">{{ synthesis.motif_principal }}</p>
+              <p class="mt-1 text-sm font-medium text-foreground">{{ displayedSynthesis.motif_principal }}</p>
             </div>
 
-            <div v-if="synthesis.symptomes_cles.length" class="grid gap-4 sm:grid-cols-2">
+            <div v-if="displayedSynthesis.symptomes_cles.length" class="grid gap-4 sm:grid-cols-2">
               <div>
                 <p class="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Symptômes clés</p>
                 <ul class="mt-1 list-disc pl-4 text-sm text-foreground">
-                  <li v-for="s in synthesis.symptomes_cles" :key="s">{{ s }}</li>
+                  <li v-for="s in displayedSynthesis.symptomes_cles" :key="s">{{ s }}</li>
                 </ul>
               </div>
               <div>
                 <p class="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Durée d'évolution</p>
-                <p class="mt-1 text-sm text-foreground">{{ synthesis.duree_evolution }}</p>
+                <p class="mt-1 text-sm text-foreground">{{ displayedSynthesis.duree_evolution }}</p>
               </div>
             </div>
 
@@ -220,33 +285,33 @@ watch(formId, () => {
                 <p class="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Inquiétude parent</p>
                 <p
                   class="mt-1 text-sm font-semibold"
-                  :class="worryConfig[synthesis.niveau_inquietude_parent]?.classes"
+                  :class="worryConfig[displayedSynthesis.niveau_inquietude_parent]?.classes"
                 >
-                  {{ worryConfig[synthesis.niveau_inquietude_parent]?.label ?? synthesis.niveau_inquietude_parent }}
+                  {{ worryConfig[displayedSynthesis.niveau_inquietude_parent]?.label ?? displayedSynthesis.niveau_inquietude_parent }}
                 </p>
               </div>
-              <div v-if="synthesis.actions_deja_prises.length">
+              <div v-if="displayedSynthesis.actions_deja_prises.length">
                 <p class="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Actions déjà prises</p>
                 <ul class="mt-1 list-disc pl-4 text-sm text-foreground">
-                  <li v-for="a in synthesis.actions_deja_prises" :key="a">{{ a }}</li>
+                  <li v-for="a in displayedSynthesis.actions_deja_prises" :key="a">{{ a }}</li>
                 </ul>
               </div>
             </div>
 
-            <div v-if="synthesis.points_attention.length" class="rounded-lg border border-red-200 bg-red-50 p-3">
+            <div v-if="displayedSynthesis.points_attention.length" class="rounded-lg border border-red-200 bg-red-50 p-3">
               <p class="text-xs font-semibold uppercase tracking-wide text-red-700">Points d'attention clinique</p>
               <ul class="mt-1 list-disc pl-4 text-sm text-red-800">
-                <li v-for="p in synthesis.points_attention" :key="p">{{ p }}</li>
+                <li v-for="p in displayedSynthesis.points_attention" :key="p">{{ p }}</li>
               </ul>
             </div>
 
-            <div v-if="synthesis.resume_message_libre">
+            <div v-if="displayedSynthesis.resume_message_libre">
               <p class="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Message complémentaire</p>
-              <p class="mt-1 text-sm italic text-foreground">{{ synthesis.resume_message_libre }}</p>
+              <p class="mt-1 text-sm italic text-foreground">{{ displayedSynthesis.resume_message_libre }}</p>
             </div>
 
             <p class="border-t border-border/70 pt-3 text-xs text-muted-foreground">
-              {{ synthesis.disclaimer }}
+              {{ displayedSynthesis.disclaimer }}
             </p>
 
             <div v-if="synthesisVersions.length" class="border-t border-border/70 pt-4">
@@ -257,14 +322,50 @@ watch(formId, () => {
                 <li
                   v-for="version in synthesisVersions"
                   :key="version.id"
-                  class="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border/70 px-3 py-2"
+                  class="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border/70 px-3 py-2"
                 >
-                  <span class="font-medium text-foreground">Version {{ version.version }}</span>
-                  <span class="text-xs text-muted-foreground">
-                    {{ formatDate(version.createdAt) }} · {{ version.model }}
-                  </span>
+                  <div class="space-y-1">
+                    <div class="flex flex-wrap items-center gap-2">
+                      <span class="font-medium text-foreground">Version {{ version.version }}</span>
+                      <span
+                        v-if="version.id === activeVersionId"
+                        class="rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary"
+                      >
+                        Active
+                      </span>
+                      <span
+                        v-else-if="previewedVersion?.id === version.id"
+                        class="rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground"
+                      >
+                        Aperçu
+                      </span>
+                    </div>
+                    <span class="block text-xs text-muted-foreground">
+                      {{ formatDate(version.createdAt) }} · {{ version.model }}
+                    </span>
+                  </div>
+                  <div class="flex flex-wrap items-center gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      @click="previewVersion(version)"
+                    >
+                      Voir
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      :disabled="isActivatingVersion || version.id === activeVersionId"
+                      @click="activateVersion(version)"
+                    >
+                      {{ version.id === activeVersionId ? 'Active' : 'Définir active' }}
+                    </Button>
+                  </div>
                 </li>
               </ol>
+              <p v-if="versionActionError" class="mt-2 text-xs text-destructive" role="alert">
+                {{ versionActionError }}
+              </p>
             </div>
           </CardContent>
         </Card>

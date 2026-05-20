@@ -162,6 +162,9 @@ export const api = {
     synthesize: async (id: string) => {
       return apiFetch(`/diagnosis/${id}/synthesize`, { method: 'POST' });
     },
+    activateSynthesisVersion: async (id: string, versionId: string) => {
+      return apiFetch(`/diagnosis/${id}/synthesis-versions/${versionId}/activate`, { method: 'POST' });
+    },
   },
 
   /**

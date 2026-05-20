@@ -120,6 +120,43 @@ synthesizeRouter.post('/:id/synthesize', authenticateToken, async (req: AuthRequ
   }
 });
 
+synthesizeRouter.post('/:id/synthesis-versions/:versionId/activate', authenticateToken, async (req: AuthRequest, res: Response): Promise<any> => {
+  try {
+    const id = String(req.params.id || '');
+    const versionId = String(req.params.versionId || '');
+    const doctorId = req.user?.id;
+
+    if (!doctorId) {
+      return res.status(401).json({ error: 'Non authentifié' });
+    }
+
+    const [record] = await db.select().from(diagnosis)
+      .where(and(eq(diagnosis.id, id), eq(diagnosis.doctorId, doctorId)))
+      .limit(1);
+
+    if (!record) {
+      return res.status(404).json({ error: 'Formulaire introuvable' });
+    }
+
+    const [version] = await db.select().from(aiSynthesisVersions)
+      .where(and(eq(aiSynthesisVersions.id, versionId), eq(aiSynthesisVersions.diagnosisId, id)))
+      .limit(1);
+
+    if (!version) {
+      return res.status(404).json({ error: 'Version de synthèse introuvable' });
+    }
+
+    await db.update(diagnosis)
+      .set({ aiSynthesis: version.synthesis })
+      .where(and(eq(diagnosis.id, id), eq(diagnosis.doctorId, doctorId)));
+
+    res.json({ synthesis: version.synthesis, version });
+  } catch (error: any) {
+    console.error('❌ [Synthesize] Activation version erreur:', error);
+    res.status(500).json({ error: 'Erreur lors de l’activation de la version' });
+  }
+});
+
 synthesizeRouter.get('/:id', authenticateToken, async (req: AuthRequest, res: Response): Promise<any> => {
   try {
     const id = String(req.params.id || '');
