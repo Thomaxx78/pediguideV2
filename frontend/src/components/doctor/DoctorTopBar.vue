@@ -11,6 +11,8 @@ const router = useRouter()
 
 const isDoctorAuthenticated = ref(false)
 const doctorEmail = ref('')
+const doctorFirstName = ref('')
+const doctorLastName = ref('')
 const isSheetOpen = ref(false)
 
 const resolveDoctorAuth = async () => {
@@ -20,10 +22,12 @@ const resolveDoctorAuth = async () => {
     return
   }
   try {
-    const response = await api.doctors.getMe() as { success: boolean, doctor?: { email?: string } }
+    const response = await api.doctors.getMe() as { success: boolean, doctor?: { email?: string; firstName?: string; lastName?: string } }
     if (response.success && response.doctor) {
       isDoctorAuthenticated.value = true
       doctorEmail.value = response.doctor.email ?? ''
+      doctorFirstName.value = response.doctor.firstName ?? ''
+      doctorLastName.value = response.doctor.lastName ?? ''
     }
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : ''
@@ -31,6 +35,8 @@ const resolveDoctorAuth = async () => {
     if (isAuthError) api.auth.logout()
     isDoctorAuthenticated.value = false
     doctorEmail.value = ''
+    doctorFirstName.value = ''
+    doctorLastName.value = ''
   }
 }
 
@@ -42,10 +48,15 @@ const handleLogout = () => {
   router.push('/login')
 }
 
+const doctorDisplayName = computed(() => {
+  const parts = [doctorFirstName.value, doctorLastName.value].filter(Boolean)
+  return parts.length ? `Dr ${parts.join(' ')}` : doctorEmail.value || 'Professionnel de santé'
+})
+
 const doctorInitial = computed(() => {
-  const email = doctorEmail.value
-  if (!email) return 'D'
-  return email.charAt(0).toUpperCase()
+  if (doctorFirstName.value) return doctorFirstName.value.charAt(0).toUpperCase()
+  if (doctorEmail.value) return doctorEmail.value.charAt(0).toUpperCase()
+  return 'D'
 })
 
 // Nav items shown when authenticated
@@ -132,7 +143,7 @@ watch(() => route.fullPath, () => { void resolveDoctorAuth() })
             aria-hidden="true"
             class="inline-flex size-[26px] items-center justify-center rounded-full bg-primary text-[12px] font-semibold text-primary-foreground"
           >{{ doctorInitial }}</span>
-          <span class="max-w-[140px] truncate text-[var(--color-ink-2)]">{{ doctorEmail || 'Pédiatre' }}</span>
+          <span class="max-w-[160px] truncate text-[var(--color-ink-2)]">{{ doctorDisplayName }}</span>
           <span aria-hidden="true" class="text-[var(--color-muted-strong)]">↪</span>
         </button>
 
@@ -173,7 +184,7 @@ watch(() => route.fullPath, () => { void resolveDoctorAuth() })
                 Se déconnecter
               </button>
               <p class="mt-2 px-3 text-[12px] text-[var(--color-muted-strong)]">
-                Connecté·e en tant que {{ doctorEmail || 'Pédiatre' }}
+                Connecté·e en tant que {{ doctorDisplayName }}
               </p>
             </nav>
           </SheetContent>

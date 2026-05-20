@@ -41,6 +41,8 @@ export const doctors = pgTable('doctors', {
   rpps: text('rpps').unique().notNull(),
   email: text('email').unique().notNull(),
   passwordHash: text('password_hash').notNull(),
+  firstName: text('first_name'),
+  lastName: text('last_name'),
   cpsCardUrl: text('cps_card_url'),
   accountStatus: text('account_status').default('pending_validation'),
   kycStatus: varchar('kyc_status', { length: 50 }).default('pending'),

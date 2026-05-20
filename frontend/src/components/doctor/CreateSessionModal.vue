@@ -69,6 +69,10 @@ const close = () => { isOpen.value = false }
 const createSession = async () => {
   error.value = ''
 
+  if (!patientFirstName.value.trim()) {
+    error.value = 'Le prénom de l\'enfant est requis.'
+    return
+  }
   if (patientEmail.value && !appointmentAt.value) {
     error.value = 'La date de rendez-vous est obligatoire dès qu\'un email patient est renseigné (sinon impossible d\'envoyer les relances).'
     return
@@ -170,8 +174,8 @@ const onKeydown = (event: KeyboardEvent) => {
             <div class="mt-5 space-y-4">
               <div class="grid gap-3 sm:grid-cols-2">
                 <Field>
-                  <FieldLabel for="patient-name">Prénom de l'enfant</FieldLabel>
-                  <Input id="patient-name" v-model="patientFirstName" size="md" placeholder="Ex : Lucas" autocomplete="off" />
+                  <FieldLabel for="patient-name" required>Prénom de l'enfant</FieldLabel>
+                  <Input id="patient-name" v-model="patientFirstName" size="md" placeholder="Ex : Lucas" autocomplete="off" required />
                 </Field>
                 <Field>
                   <FieldLabel for="patient-email">Email du parent</FieldLabel>

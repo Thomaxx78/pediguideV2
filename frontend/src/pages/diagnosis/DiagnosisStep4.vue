@@ -54,7 +54,7 @@ const antecedentChipsDisabled = computed(() => props.form.noAntecedents)
         Antécédents et allergies
       </h1>
       <p class="text-[15px] text-[var(--color-ink-2)]">
-        Ces informations permettent au pédiatre d'éviter certaines erreurs.
+        Ces informations permettent au professionnel de santé d'éviter certaines erreurs.
       </p>
     </header>
 

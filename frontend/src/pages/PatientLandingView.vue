@@ -1,37 +1,54 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ViewportShell } from '@/components/ui/viewport-shell'
 import { Brand } from '@/components/ui/brand'
 import { Button } from '@/components/ui/button'
+import { API_BASE_URL } from '@/services/api'
 
 const route = useRoute()
 const router = useRouter()
 
-/**
- * Child first name is passed via ?prenom= or ?firstName= query param when the
- * parent arrives from the SMS/email link. Fallback to a neutral salutation.
- */
-const childFirstName = computed(() => {
-  const q = route.query
-  const candidate = (q.prenom ?? q.firstName ?? q.first_name) as string | undefined
-  return candidate ? String(candidate).trim() : ''
-})
+const token = computed(() => route.params.token as string | undefined)
+const hasCustomTemplate = ref(false)
+const childFirstName = ref('')
+const doctorFirstName = ref('')
+const doctorLastName = ref('')
+const appointmentAt = ref<string | null>(null)
 
-const doctorName = computed(() => {
-  const q = route.query
-  const candidate = (q.medecin ?? q.doctor) as string | undefined
-  return candidate ? String(candidate).trim() : 'Dr Martin'
+const doctorDisplayName = computed(() => {
+  const parts = [doctorFirstName.value, doctorLastName.value].filter(Boolean)
+  return parts.length ? `Dr ${parts.join(' ')}` : null
 })
 
 const appointmentLabel = computed(() => {
-  const q = route.query
-  const candidate = q.rdv as string | undefined
-  return candidate ? String(candidate).trim() : 'Demain à 10h30'
+  if (!appointmentAt.value) return null
+  const d = new Date(appointmentAt.value)
+  return d.toLocaleString('fr-FR', { dateStyle: 'long', timeStyle: 'short' })
+})
+
+onMounted(async () => {
+  if (!token.value) return
+  try {
+    const res = await fetch(`${API_BASE_URL}/sessions/${token.value}`)
+    if (res.ok) {
+      const data = await res.json()
+      hasCustomTemplate.value = Boolean(data.formTemplateId)
+      childFirstName.value = data.patientFirstName ?? ''
+      doctorFirstName.value = data.doctorFirstName ?? ''
+      doctorLastName.value = data.doctorLastName ?? ''
+      appointmentAt.value = data.appointmentAt ?? null
+    }
+  } catch {}
 })
 
 const startQuestionnaire = () => {
-  router.push({ name: 'diagnosis' })
+  if (!token.value) return
+  if (hasCustomTemplate.value) {
+    router.push(`/form/${token.value}`)
+  } else {
+    router.push({ name: 'diagnosis', query: { token: token.value } })
+  }
 }
 </script>
 
@@ -50,12 +67,12 @@ const startQuestionnaire = () => {
       <h1 class="font-display text-[30px] leading-[1.1] font-medium tracking-[-0.025em] text-[var(--color-ink)]">
         Bonjour, vous êtes les parents
         <span v-if="childFirstName" class="text-primary">de {{ childFirstName }}</span>
-        <span v-else>de votre enfant</span>.
+        <span v-else>de votre enfant</span>&nbsp;!
       </h1>
       <p class="mt-4 text-[15px] leading-relaxed text-[var(--color-ink-2)]">
         Nous allons vous poser quelques questions pour préparer la consultation.
         Cela prend environ <strong class="font-medium text-[var(--color-ink)]">3 minutes</strong> et
-        vos réponses arrivent directement au pédiatre.
+        vos réponses arrivent directement au professionnel de santé.
       </p>
     </section>
 
@@ -98,7 +115,7 @@ const startQuestionnaire = () => {
         </div>
       </div>
 
-      <div class="flex items-start gap-3">
+      <div v-if="appointmentLabel" class="flex items-start gap-3">
         <span class="mt-0.5 inline-flex size-9 shrink-0 items-center justify-center rounded-full bg-[var(--color-surface-2)] text-[var(--color-ink-2)]">
           <svg viewBox="0 0 20 20" class="size-4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
             <path d="M6 3v4M14 3v4M5 7h10v9a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V7Z" />
@@ -106,8 +123,11 @@ const startQuestionnaire = () => {
           </svg>
         </span>
         <div>
-          <p class="text-[15px] font-medium text-[var(--color-ink)]">Pour {{ doctorName }}</p>
-          <p class="text-sm text-[var(--color-ink-2)]">Rendez-vous {{ appointmentLabel }}.</p>
+          <p class="text-[15px] font-medium text-[var(--color-ink)]">
+            <template v-if="doctorDisplayName">Pour {{ doctorDisplayName }}</template>
+            <template v-else>Votre rendez-vous</template>
+          </p>
+          <p class="text-sm text-[var(--color-ink-2)]">{{ appointmentLabel }}</p>
         </div>
       </div>
 
@@ -120,7 +140,7 @@ const startQuestionnaire = () => {
         </span>
         <div>
           <p class="text-[15px] font-medium text-[var(--color-ink)]">Données confidentielles</p>
-          <p class="text-sm text-[var(--color-ink-2)]">Hébergement HDS, transmises uniquement au pédiatre.</p>
+          <p class="text-sm text-[var(--color-ink-2)]">Hébergement HDS, transmises uniquement au professionnel de santé.</p>
         </div>
       </div>
     </section>
@@ -131,7 +151,7 @@ const startQuestionnaire = () => {
         Commencer le questionnaire
       </Button>
       <p class="mt-4 text-center text-xs text-[var(--color-muted-strong)]">
-        En continuant, vous acceptez que vos réponses soient transmises au pédiatre.
+        En continuant, vous acceptez que vos réponses soient transmises au professionnel de santé.
       </p>
     </section>
   </ViewportShell>

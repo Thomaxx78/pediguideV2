@@ -49,7 +49,7 @@ sessionsRouter.post('/', authenticateToken, async (req: AuthRequest, res: Respon
     }).returning();
 
     const baseUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
-    const formUrl = `${baseUrl}/form/${token}`;
+    const formUrl = `${baseUrl}/pre-consultation/${token}`;
 
     res.json({ session, formUrl });
   } catch (error: any) {
@@ -84,31 +84,36 @@ sessionsRouter.get('/', authenticateToken, async (req: AuthRequest, res: Respons
 sessionsRouter.get('/:token', async (req, res: Response): Promise<any> => {
   try {
     const token = String(req.params.token || '');
-    const [session] = await db.select({
+    const [row] = await db.select({
       id: patientSessions.id,
       status: patientSessions.status,
       expiresAt: patientSessions.expiresAt,
       patientFirstName: patientSessions.patientFirstName,
       formTemplateId: patientSessions.formTemplateId,
-    }).from(patientSessions).where(eq(patientSessions.patientToken, token)).limit(1);
+      appointmentAt: patientSessions.appointmentAt,
+      doctorFirstName: doctors.firstName,
+      doctorLastName: doctors.lastName,
+    }).from(patientSessions)
+      .leftJoin(doctors, eq(patientSessions.doctorId, doctors.id))
+      .where(eq(patientSessions.patientToken, token)).limit(1);
 
-    if (!session) return res.status(404).json({ error: 'Lien introuvable' });
-    if (new Date() > new Date(session.expiresAt)) {
+    if (!row) return res.status(404).json({ error: 'Lien introuvable' });
+    if (new Date() > new Date(row.expiresAt)) {
       return res.status(410).json({ error: 'Ce lien a expiré' });
     }
-    if (session.status === 'completed') {
+    if (row.status === 'completed') {
       return res.status(409).json({ error: 'Ce formulaire a déjà été rempli' });
     }
 
     // Charger les questions du template si associé
     let questions = DEFAULT_QUESTIONS;
-    if (session.formTemplateId) {
+    if (row.formTemplateId) {
       const [template] = await db.select({ questions: formTemplates.questions })
-        .from(formTemplates).where(eq(formTemplates.id, session.formTemplateId)).limit(1);
+        .from(formTemplates).where(eq(formTemplates.id, row.formTemplateId)).limit(1);
       if (template) questions = template.questions;
     }
 
-    res.json({ ...session, questions });
+    res.json({ ...row, questions });
   } catch (error: any) {
     res.status(500).json({ error: 'Erreur serveur' });
   }
@@ -128,6 +133,22 @@ sessionsRouter.post('/:token/respond', async (req, res: Response): Promise<any> 
     const data = req.body;
     const isCustom = !!session.formTemplateId;
     const nir: string | null = data.nir?.trim() || null;
+
+    // For custom templates: build labeled answers map { [question label]: answer }
+    let labeledCustomAnswers: Record<string, string | string[]> | null = null;
+    if (isCustom && data.answers) {
+      const [template] = await db.select({ questions: formTemplates.questions })
+        .from(formTemplates).where(eq(formTemplates.id, session.formTemplateId!)).limit(1);
+      if (template?.questions) {
+        const questions = template.questions as Array<{ id: string; label: string }>;
+        labeledCustomAnswers = {};
+        for (const q of questions) {
+          if (data.answers[q.id] !== undefined) {
+            labeledCustomAnswers[q.label] = data.answers[q.id];
+          }
+        }
+      }
+    }
 
     // Matching NIR : cherche ou crée le dossier enfant
     let childId: string | null = null;
@@ -156,29 +177,53 @@ sessionsRouter.post('/:token/respond', async (req, res: Response): Promise<any> 
     }
 
     const childBirthDate = data.childBirthDate || data.answers?.q3 || 'N/A';
+    const behaviorChanges = (data.behaviorChanges || data.answers?.q5 || []) as string[];
+    const clinicalSigns = (data.clinicalSigns || data.answers?.q6 || []) as string[];
+    const duration = data.duration || data.answers?.q7 || '';
+    const worryLevel = data.worryLevel || data.answers?.q8 || '';
+    const actionsTaken = (data.actionsTaken || data.answers?.q9 || []) as string[];
+    const additionalNotes = data.additionalNotes || data.answers?.q10 || '';
+
     const triage = computeTriageScore({
-      clinicalSigns: (data.clinicalSigns || []) as string[],
-      behaviorChanges: (data.behaviorChanges || []) as string[],
-      worryLevel: data.worryLevel || '',
-      duration: data.duration || '',
+      clinicalSigns,
+      behaviorChanges,
+      worryLevel,
+      duration,
       childBirthDate,
     });
 
     const [record] = await db.insert(diagnosis).values({
-      childFirstName: data.childFirstName || data.answers?.q1 || 'N/A',
+      childFirstName: data.childFirstName || data.answers?.q1 || session.patientFirstName || 'N/A',
       childLastName: data.childLastName || data.answers?.q2 || 'N/A',
       childBirthDate,
       consultationReason: data.consultationReason || data.answers?.q4 || 'N/A',
-      behaviorChanges: (data.behaviorChanges || []) as string[],
-      clinicalSigns: (data.clinicalSigns || []) as string[],
-      duration: data.duration || 'N/A',
-      worryLevel: data.worryLevel || 'N/A',
-      actionsTaken: (data.actionsTaken || []) as string[],
-      additionalNotes: data.additionalNotes || '',
+      behaviorChanges,
+      clinicalSigns,
+      duration: duration || 'N/A',
+      worryLevel: worryLevel || 'N/A',
+      actionsTaken,
+      additionalNotes,
+
+      weight: data.weight ?? null,
+      height: data.height ?? null,
+      gender: data.gender ?? null,
+      symptoms: (data.symptoms ?? []) as string[],
+      symptomOther: data.symptomOther ?? null,
+      symptomTimeline: data.symptomTimeline ?? {},
+      symptomSeverity: data.symptomSeverity ?? {},
+      allergies: (data.allergies ?? []) as string[],
+      noAllergies: data.noAllergies ?? false,
+      treatments: data.treatments ?? null,
+      antecedents: (data.antecedents ?? []) as string[],
+      noAntecedents: data.noAntecedents ?? false,
+      vaccinations: data.vaccinations ?? null,
+      worry: data.worry ?? null,
+      photoName: data.photoName ?? null,
+
       doctorId: session.doctorId,
       sessionId: session.id,
       formTemplateId: session.formTemplateId || null,
-      customAnswers: isCustom ? (data.answers || {}) : null,
+      customAnswers: isCustom ? (labeledCustomAnswers ?? data.answers ?? {}) : null,
       childId,
       nir,
       triageLevel: triage.level,

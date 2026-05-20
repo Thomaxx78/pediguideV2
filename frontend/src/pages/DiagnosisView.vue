@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, reactive, ref, watch } from 'vue'
 import { storeToRefs } from 'pinia'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { Button } from '@/components/ui/button'
 import { Field, FieldError } from '@/components/ui/field'
 import { ViewportShell } from '@/components/ui/viewport-shell'
@@ -21,7 +21,9 @@ import {
 } from '@/pages/diagnosis/diagnosisValidation'
 import { API_BASE_URL } from '@/services/api'
 
+const route = useRoute()
 const router = useRouter()
+const sessionToken = computed(() => route.query.token as string | undefined)
 const formStore = useDiagnosisFormStore()
 const { form } = storeToRefs(formStore)
 
@@ -190,7 +192,11 @@ const submitForm = async () => {
 
   isLoading.value = true
   try {
-    const res = await fetch(`${API_BASE_URL}/diagnosis`, {
+    const url = sessionToken.value
+      ? `${API_BASE_URL}/sessions/${sessionToken.value}/respond`
+      : `${API_BASE_URL}/diagnosis`
+
+    const res = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(form.value),
@@ -201,8 +207,6 @@ const submitForm = async () => {
     submissionId.value = String(data.id ?? '')
     if (!submissionId.value) throw new Error('Identifiant de soumission manquant')
 
-    // Confirmation state — keep form.value untouched until the user clicks
-    // "Revoir le questionnaire" so the data is still around for the PDF link.
     step.value = totalSteps + 1
   } catch (error) {
     console.error(error)
@@ -290,7 +294,7 @@ watch(step, async () => {
                   @change="handleFieldChange('consent')"
                 />
                 <span class="text-sm text-[var(--color-ink-2)]">
-                  Je consens à la transmission de ces informations au pédiatre afin de préparer la consultation.
+                  Je consens à la transmission de ces informations au professionnel de santé afin de préparer la consultation.
                 </span>
               </label>
               <FieldError
@@ -322,7 +326,7 @@ watch(step, async () => {
             type="submit"
             :disabled="isLoading"
           >
-            {{ isLoading ? 'Envoi...' : 'Envoyer au pédiatre' }}
+            {{ isLoading ? 'Envoi...' : 'Envoyer mes réponses' }}
           </Button>
 
           <Button
@@ -359,7 +363,7 @@ watch(step, async () => {
             C'est transmis. Merci.
           </h1>
           <p class="text-[15px] text-[var(--color-ink-2)] max-w-[320px]">
-            Vos réponses ont été envoyées au pédiatre. Il les aura à disposition avant la consultation.
+            Vos réponses ont été transmises. Le professionnel de santé les aura à disposition avant la consultation.
           </p>
         </div>
 
@@ -372,7 +376,7 @@ watch(step, async () => {
           </span>
           <div>
             <p class="text-[14.5px] font-medium text-[var(--color-ink)]">
-              Le pédiatre dispose déjà de toutes vos réponses.
+              Le professionnel de santé dispose déjà de toutes vos réponses.
             </p>
             <p class="mt-1 text-[13px] text-[var(--color-ink-2)]">
               Rendez-vous comme prévu — pas besoin de tout réexpliquer.
@@ -396,7 +400,7 @@ watch(step, async () => {
             <li class="flex items-start gap-3">
               <span class="inline-flex size-7 shrink-0 items-center justify-center rounded-full bg-[var(--color-primary-soft)] text-primary text-sm font-semibold">2</span>
               <div>
-                <p class="text-[15px] font-medium text-[var(--color-ink)]">Le pédiatre aura déjà vos réponses</p>
+                <p class="text-[15px] font-medium text-[var(--color-ink)]">Le professionnel de santé aura déjà vos réponses</p>
                 <p class="text-sm text-[var(--color-ink-2)]">Pas besoin de tout réexpliquer&nbsp;: il sait déjà ce qui vous amène.</p>
               </div>
             </li>

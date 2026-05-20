@@ -443,9 +443,20 @@ diagnosisRouter.get('/', authenticateToken, async (req: AuthRequest, res: Respon
   try {
     const doctorId = req.user?.id;
     const list = await db.select().from(diagnosis)
+      .leftJoin(patientSessions, eq(diagnosis.sessionId, patientSessions.id))
       .where(eq(diagnosis.doctorId, doctorId!))
       .orderBy(desc(diagnosis.createdAt));
-    res.json(list);
+
+    // Enrich childFirstName from session.patientFirstName when it's missing/N/A
+    const enriched = list.map(({ formulaires: d, patient_sessions: s }) => {
+      const hasName = d.childFirstName && d.childFirstName !== 'N/A';
+      return {
+        ...d,
+        childFirstName: hasName ? d.childFirstName : (s?.patientFirstName ?? d.childFirstName),
+      };
+    });
+
+    res.json(enriched);
   } catch (error) {
     console.error("Détail de l'erreur", error);
     res.status(500).json({ error: 'Erreur lecture base de données' });

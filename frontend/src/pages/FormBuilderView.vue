@@ -342,7 +342,7 @@ onMounted(async () => {
             <input
               v-model="title"
               type="text"
-              placeholder="Titre du formulaire — Ex. Consultation pédiatrie générale"
+              placeholder="Titre du formulaire — Ex. Consultation générale enfant"
               class="w-full bg-transparent font-display text-2xl font-medium tracking-[-0.018em] text-[var(--color-ink)] placeholder:text-[var(--color-line-2)] focus-visible:outline-none"
             />
             <input

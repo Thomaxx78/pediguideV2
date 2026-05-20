@@ -49,14 +49,16 @@ const validateNonEmpty = (value: unknown, message: string) => {
  */
 export const validators: Partial<Record<FormFieldKey, (value: unknown) => string | null>> = {
   childFirstName: (v) => validateNonEmpty(v, "Le prénom de l'enfant est requis."),
+  childLastName: (v) => validateNonEmpty(v, "Le nom de l'enfant est requis."),
   childBirthDate: (v) => validateBirthDate(String(v ?? '')),
+  nir: (v) => validateNonEmpty(v, 'Le numéro de sécurité sociale est requis.'),
   weight: (v) => validateWeight(String(v ?? '')),
   gender: validateGender,
   consent: validateConsent,
 }
 
 export const requiredFieldsByStep: Record<number, FormFieldKey[]> = {
-  1: ['childFirstName', 'childBirthDate', 'weight', 'gender'],
+  1: ['childFirstName', 'childLastName', 'childBirthDate', 'nir', 'weight', 'gender'],
   // Steps 2 & 3 use step-level validation (symptom list + per-symptom maps).
   2: [],
   3: [],
@@ -70,7 +72,9 @@ export const requiredFieldsByStep: Record<number, FormFieldKey[]> = {
  */
 export const fieldIds: Partial<Record<FormFieldKey, string>> = {
   childFirstName: 'child-first-name',
+  childLastName: 'child-last-name',
   childBirthDate: 'child-birth-date',
+  nir: 'child-nir',
   weight: 'child-weight',
   height: 'child-height',
   gender: 'child-gender',

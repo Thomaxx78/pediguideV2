@@ -128,6 +128,8 @@ export const api = {
     },
 
     register: async (data: {
+      firstName: string;
+      lastName: string;
       rpps: string;
       email: string;
       password: string;
@@ -150,6 +152,12 @@ export const api = {
   doctors: {
     getMe: async () => {
       return apiFetch('/doctors/me');
+    },
+    updateMe: async (data: { firstName?: string; lastName?: string }) => {
+      return apiFetch('/doctors/me', {
+        method: 'PATCH',
+        body: JSON.stringify(data),
+      });
     },
   },
   diagnosis: {

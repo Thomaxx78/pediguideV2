@@ -7,7 +7,9 @@ export type Vaccinations = 'oui' | 'non' | 'sais-pas' | ''
 export type DiagnosisFormState = {
   // Step 1 — Child info (Pediguide redesign)
   childFirstName: string
+  childLastName: string
   childBirthDate: string
+  nir: string
   weight: string           // kg, decimal
   height: string           // cm, optional
   gender: Gender
@@ -39,7 +41,9 @@ export type DiagnosisFormState = {
 
 const createFormState = (): DiagnosisFormState => ({
   childFirstName: '',
+  childLastName: '',
   childBirthDate: '',
+  nir: '',
   weight: '',
   height: '',
   gender: '',

@@ -10,11 +10,13 @@ export const authRouter = Router();
 
 authRouter.post('/register', validate(registerSchema), async (req: Request, res: Response): Promise<any> => {
   try {
-    const { rpps, email, password, cpsCardUrl } = req.body;
+    const { firstName, lastName, rpps, email, password, cpsCardUrl } = req.body;
 
     const hashedPassword = await bcrypt.hash(password, 12);
 
     const result = await db.insert(doctors).values({
+      firstName: firstName.trim(),
+      lastName: lastName.trim(),
       rpps,
       email: email.toLowerCase().trim(),
       passwordHash: hashedPassword,
@@ -71,6 +73,8 @@ authRouter.post('/login', validate(loginSchema), async (req: Request, res: Respo
       doctor: {
         id: doctor.id,
         email: doctor.email,
+        firstName: doctor.firstName,
+        lastName: doctor.lastName,
         rpps: doctor.rpps,
         kycStatus: doctor.kycStatus,
       },
