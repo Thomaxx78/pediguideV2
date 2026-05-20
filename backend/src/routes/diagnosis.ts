@@ -2,7 +2,7 @@ import { Router, Request, Response } from 'express';
 import PDFDocument from 'pdfkit';
 import { desc, eq } from 'drizzle-orm';
 import { db } from '../db';
-import { diagnosis } from '../db/schema';
+import { diagnosis, response_table, response_to_question_table } from '../db/schema';
 
 export const diagnosisRouter = Router();
 
@@ -35,27 +35,33 @@ const drawSectionSeparator = (doc: PDFDocumentType, color: string, left: number,
     .stroke();
 };
 
+export interface DiagnosisResponse {
+  response_id: string
+  responses: {
+    question_id: string
+    proposition_id: string | null
+    value: string
+  }[]
+}
+
 diagnosisRouter.post('/', async (req: Request, res: Response) => {
   try {
-    const data = req.body;
-    
-    const result = await db.insert(diagnosis).values({
-      // childFirstName: data.childFirstName,
-      // childLastName: data.childLastName,
-      // childBirthDate: data.childBirthDate,
-      // consultationReason: data.consultationReason,
-      
-      // behaviorChanges: (data.behaviorChanges || []) as string[],
-      // clinicalSigns: (data.clinicalSigns || []) as string[],
-      
-      // duration: data.duration,
-      // worryLevel: data.worryLevel,
-      
-      // actionsTaken: (data.actionsTaken || []) as string[],
-      // additionalNotes: data.additionalNotes || ""
-    }).returning({ id: diagnosis.id });
+    const data: DiagnosisResponse = req.body;
 
-    res.json({ success: true, id: result[0].id });
+    const results = await db.transaction(async tx => {
+      await Promise.all([
+        tx.update(response_table)
+        .set({
+          answeredAt: new Date
+        })
+        .where(eq(response_table.id, data.response_id)),
+        tx.insert(response_to_question_table)
+        .values(data.responses)
+        .returning()
+      ])
+    })
+
+    res.json({ success: true, id: data.response_id });
   } catch (error) {
     console.error("Détail de l'erreur", error);
     res.status(500).json({ error: "Erreur lors de l'enregistrement" });

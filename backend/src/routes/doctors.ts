@@ -1,7 +1,7 @@
 import { Router, Response } from 'express';
 import { AuthRequest, authenticateToken } from '../middleware/auth.middleware';
 import { db } from '../db';
-import { diagnosis, diagnosis_question_proposition_table, diagnosis_question_table, diagnosis_section_table, doctors, question_type_enum } from '../db/schema';
+import { diagnosis, diagnosis_question_proposition_table, diagnosis_question_table, diagnosis_section_table, doctors, question_type_enum, response_table } from '../db/schema';
 import { desc, eq } from 'drizzle-orm';
 
 export interface Proposition {
@@ -171,6 +171,17 @@ doctorsRouter.post('/create-form', authenticateToken, async (req: AuthRequest, r
   })
 
   return res.send(created)
+})
+
+doctorsRouter.post('/create-form-response', authenticateToken, async (req: AuthRequest, res: Response): Promise<any> => {
+  const {
+    diagnosis_id
+  } = req.body
+  const [createdFormResponse] = await db.insert(response_table).values({
+    diagnosis_id
+  }).returning()
+
+  res.send(createdFormResponse)
 })
 
 doctorsRouter.get('/forms', authenticateToken, async (req: AuthRequest, res: Response): Promise<any> => {

@@ -101,10 +101,24 @@ export const diagnosis_question_proposition_table = pgTable('diagnosis_question_
   proposition: text('proposition').notNull()
 })
 
+export const response_table = pgTable('response', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  createdAt: timestamp('created_at').defaultNow(),
+  answeredAt: timestamp('created_at'),
+  diagnosis_id: uuid('diagnosis_id').references(() => diagnosis.id)
+})
+
+export const response_to_question_table = pgTable('response_to_question', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  question_id: uuid('question_id').references(() => diagnosis_question_table.id).notNull(),
+  proposition_id: uuid('proposition_id').references(() => diagnosis_question_proposition_table.id),
+  value: text('value').notNull(),
+})
+
 export const diagnosisRelations = relations(diagnosis, ({ many }) => ({
   sections: many(diagnosis_section_table),
-
   questions: many(diagnosis_question_table),
+  responses: many(response_table),
 }))
 
 export const diagnosisSectionRelations = relations(diagnosis_section_table, ({ one, many }) => ({
@@ -133,4 +147,22 @@ export const diagnosisQuestionPropositionRealtions = relations(diagnosis_questio
     fields: [diagnosis_question_proposition_table.question_id],
     references: [diagnosis_question_table.id],
   }),
+}))
+
+export const responseRelations = relations(response_table, ({ one }) => ({
+  diagnosis: one(diagnosis, {
+    fields: [response_table.diagnosis_id],
+    references: [diagnosis.id],
+  })
+}))
+
+export const responseToQuestionRelations = relations(response_to_question_table, ({ one }) => ({
+  question: one(diagnosis_question_table, {
+    fields: [response_to_question_table.question_id],
+    references: [diagnosis_question_table.id],
+  }),
+  proposition: one(diagnosis_question_proposition_table, {
+    fields: [response_to_question_table.proposition_id],
+    references: [diagnosis_question_proposition_table.id]
+  })
 }))
