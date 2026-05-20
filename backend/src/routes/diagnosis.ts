@@ -8,6 +8,18 @@ import { authenticateToken, type AuthRequest } from '../middleware/auth.middlewa
 
 export const diagnosisRouter = Router();
 
+const priorityLabels: Record<string, string> = {
+  non_urgent: 'Non urgent',
+  a_surveiller: 'À surveiller',
+  urgent: 'Urgent',
+};
+
+const worryLabels: Record<string, string> = {
+  faible: 'Faible',
+  modéré: 'Modéré',
+  élevé: 'Élevé',
+};
+
 const formatDate = (date: Date) => {
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, '0');
@@ -151,6 +163,12 @@ diagnosisRouter.get('/:id/pdf', async (req: Request, res: Response) => {
       doc.moveDown(0.2);
     };
 
+    const addParagraph = (label: string, value?: string | null) => {
+      doc.font('Helvetica-Bold').fillColor(darkContrast).text(label, pageLeft, doc.y, { width: contentWidth });
+      doc.font('Helvetica').fillColor('#111111').text(formatTextValue(value), pageLeft, doc.y, { width: contentWidth });
+      doc.moveDown(0.2);
+    };
+
     doc.font('Helvetica').fontSize(11).lineGap(2).fillColor('#111111');
 
     doc
@@ -180,6 +198,26 @@ diagnosisRouter.get('/:id/pdf', async (req: Request, res: Response) => {
     addKeyValue('Motif de consultation :', formatTextValue(record.consultationReason));
     drawSectionSeparator(doc, separatorGray, pageLeft, pageRight);
     doc.moveDown(0.6);
+
+    if (record.aiSynthesis) {
+      addSectionTitle('Synthèse IA');
+      addKeyValue('Priorité :', priorityLabels[record.aiSynthesis.niveau_priorite] ?? record.aiSynthesis.niveau_priorite);
+      addKeyValue(
+        "Niveau d'inquiétude parent :",
+        worryLabels[record.aiSynthesis.niveau_inquietude_parent] ?? record.aiSynthesis.niveau_inquietude_parent,
+      );
+      addParagraph('Motif principal :', record.aiSynthesis.motif_principal);
+      addBulletList('Symptômes clés :', normalizeList(record.aiSynthesis.symptomes_cles));
+      addKeyValue("Durée d'évolution :", formatTextValue(record.aiSynthesis.duree_evolution));
+      addBulletList('Actions déjà prises :', normalizeList(record.aiSynthesis.actions_deja_prises));
+      addBulletList("Points d'attention :", normalizeList(record.aiSynthesis.points_attention));
+      if (record.aiSynthesis.resume_message_libre) {
+        addParagraph('Message complémentaire résumé :', record.aiSynthesis.resume_message_libre);
+      }
+      addParagraph('Disclaimer IA :', record.aiSynthesis.disclaimer);
+      drawSectionSeparator(doc, separatorGray, pageLeft, pageRight);
+      doc.moveDown(0.6);
+    }
 
     addSectionTitle('Observations');
     addBulletList('Changements de comportement :', normalizeList(record.behaviorChanges as string[] | null));

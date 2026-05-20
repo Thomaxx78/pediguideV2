@@ -11,6 +11,7 @@ import {
 } from '@/components/ui/card'
 import { doctorFormsApi, type DoctorFormDetail, type AiSynthesis } from '@/services/doctorFormsApi'
 import api from '@/services/api'
+import { downloadDiagnosisPdf } from '@/services/pdfDownload'
 
 const route = useRoute()
 
@@ -22,6 +23,8 @@ const error = ref<string | null>(null)
 const synthesis = ref<AiSynthesis | null>(null)
 const isSynthesizing = ref(false)
 const synthesisError = ref<string | null>(null)
+const isDownloadingPdf = ref(false)
+const pdfError = ref<string | null>(null)
 
 const priorityConfig = {
   non_urgent: { label: 'Non urgent', classes: 'bg-green-100 text-green-800 border-green-200' },
@@ -82,6 +85,20 @@ const generateSynthesis = async () => {
   }
 }
 
+const downloadPdf = async () => {
+  if (!formId.value) return
+  isDownloadingPdf.value = true
+  pdfError.value = null
+
+  try {
+    await downloadDiagnosisPdf(formId.value)
+  } catch (err: unknown) {
+    pdfError.value = err instanceof Error ? err.message : 'Impossible de télécharger le PDF.'
+  } finally {
+    isDownloadingPdf.value = false
+  }
+}
+
 onMounted(() => {
   loadForm()
 })
@@ -103,10 +120,20 @@ watch(formId, () => {
           Consultez les informations transmises par le patient.
         </p>
       </div>
-      <Button as-child variant="outline">
-        <RouterLink to="/dashboard">Retour au tableau de bord</RouterLink>
-      </Button>
+      <div class="flex flex-wrap items-center gap-2">
+        <Button
+          variant="outline"
+          :disabled="isDownloadingPdf || !formId"
+          @click="downloadPdf"
+        >
+          {{ isDownloadingPdf ? 'Téléchargement...' : synthesis ? 'PDF avec synthèse IA' : 'Télécharger PDF' }}
+        </Button>
+        <Button as-child variant="outline">
+          <RouterLink to="/dashboard">Retour au tableau de bord</RouterLink>
+        </Button>
+      </div>
     </header>
+    <p v-if="pdfError" class="text-sm text-destructive" role="alert">{{ pdfError }}</p>
 
     <div v-if="isLoading" class="rounded-2xl border border-border/70 bg-background p-8">
       <p class="text-sm text-muted-foreground" aria-live="polite">Chargement...</p>
@@ -137,6 +164,17 @@ watch(formId, () => {
             </div>
           </CardHeader>
           <CardContent class="space-y-5">
+            <div class="flex flex-wrap justify-end gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                :disabled="isDownloadingPdf"
+                @click="downloadPdf"
+              >
+                {{ isDownloadingPdf ? 'Téléchargement...' : 'Exporter le PDF' }}
+              </Button>
+            </div>
+
             <div>
               <p class="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Motif principal</p>
               <p class="mt-1 text-sm font-medium text-foreground">{{ synthesis.motif_principal }}</p>
