@@ -1,74 +1,71 @@
 <script setup lang="ts">
+import { computed } from 'vue'
+import { Chip } from '@/components/ui/chip'
 import type { DiagnosisFormState } from '@/stores/diagnosisForm'
-import { FieldDescription, FieldLegend, FieldSet } from '@/components/ui/field'
-import { behaviorOptions, clinicalSignsOptions } from '@/pages/diagnosis/diagnosisOptions'
+import { symptomGroups } from './diagnosisOptions'
 
-defineProps<{
+const props = defineProps<{
   form: DiagnosisFormState
 }>()
+
+const isChecked = (id: string) => props.form.symptoms.includes(id)
+
+const toggle = (id: string, value: boolean) => {
+  const set = new Set(props.form.symptoms)
+  if (value) set.add(id)
+  else set.delete(id)
+  props.form.symptoms = Array.from(set)
+}
+
+const selectedCount = computed(() => props.form.symptoms.length)
 </script>
 
 <template>
-  <section class="space-y-6" aria-labelledby="step-2-title">
-    <div class="space-y-2">
-      <h2 id="step-2-title" tabindex="-1" class="text-h3 font-semibold text-foreground">
-        Ce que vous observez
-      </h2>
-      <p class="text-sm text-muted-foreground">
-        Sélectionnez tout ce qui s'applique. Cette étape est facultative.
+  <section class="space-y-7" aria-labelledby="step-2-title">
+    <header class="space-y-2">
+      <h1 id="step-2-title" tabindex="-1" class="font-display text-[26px] leading-[1.15] font-medium tracking-[-0.02em] text-[var(--color-ink)]">
+        Qu'est-ce qui vous amène à consulter ?
+      </h1>
+      <p class="text-[15px] text-[var(--color-ink-2)]">
+        Sélectionnez tous les symptômes que vous observez.
       </p>
+      <p class="text-sm text-[var(--color-muted-strong)]" aria-live="polite">
+        {{ selectedCount === 0 ? 'Aucun symptôme sélectionné' : `${selectedCount} symptôme${selectedCount > 1 ? 's' : ''} sélectionné${selectedCount > 1 ? 's' : ''}` }}
+      </p>
+    </header>
+
+    <div id="symptoms-group" class="space-y-6">
+      <fieldset
+        v-for="group in symptomGroups"
+        :key="group.id"
+        class="space-y-3"
+      >
+        <legend class="text-sm font-medium text-[var(--color-ink-2)]">{{ group.label }}</legend>
+        <div class="flex flex-wrap gap-2">
+          <Chip
+            v-for="option in group.options"
+            :key="option.id"
+            :model-value="isChecked(option.id)"
+            role="checkbox"
+            @update:model-value="(v) => toggle(option.id, v)"
+          >
+            {{ option.label }}
+          </Chip>
+        </div>
+      </fieldset>
+
+      <div class="space-y-2">
+        <label for="symptoms-other" class="text-sm font-medium text-[var(--color-ink-2)]">
+          Autre — précisez si besoin
+        </label>
+        <textarea
+          id="symptoms-other"
+          v-model="form.symptomOther"
+          rows="3"
+          class="w-full rounded-[var(--r-md)] border border-[var(--color-line-2)] bg-[var(--color-surface)] px-[14px] py-3 text-base text-[var(--color-ink)] placeholder:text-[var(--color-muted-strong)] outline-none transition-[border-color,box-shadow] focus-visible:border-primary focus-visible:shadow-[var(--shadow-input-focus)]"
+          placeholder="Ex : éruption sur les bras depuis ce matin"
+        ></textarea>
+      </div>
     </div>
-
-    <FieldSet>
-      <FieldLegend>
-        Changements de comportement
-        <span class="text-xs text-muted-foreground">(facultatif)</span>
-      </FieldLegend>
-      <FieldDescription>Plusieurs choix possibles.</FieldDescription>
-      <div class="space-y-3">
-        <label
-          v-for="option in behaviorOptions"
-          :key="option.id"
-          :for="option.id"
-          class="flex items-start gap-3 rounded-lg border border-border/70 bg-background p-3 transition-colors hover:bg-accent/60 focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2 focus-within:ring-offset-background"
-        >
-          <input
-            :id="option.id"
-            v-model="form.behaviorChanges"
-            type="checkbox"
-            name="behaviorChanges"
-            :value="option.label"
-            class="mt-0.5 h-4 w-4 rounded border-input accent-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
-          />
-          <span class="text-sm text-foreground">{{ option.label }}</span>
-        </label>
-      </div>
-    </FieldSet>
-
-    <FieldSet>
-      <FieldLegend>
-        Signes cliniques observés
-        <span class="text-xs text-muted-foreground">(facultatif)</span>
-      </FieldLegend>
-      <FieldDescription>Plusieurs choix possibles.</FieldDescription>
-      <div class="space-y-3">
-        <label
-          v-for="option in clinicalSignsOptions"
-          :key="option.id"
-          :for="option.id"
-          class="flex items-start gap-3 rounded-lg border border-border/70 bg-background p-3 transition-colors hover:bg-accent/60 focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2 focus-within:ring-offset-background"
-        >
-          <input
-            :id="option.id"
-            v-model="form.clinicalSigns"
-            type="checkbox"
-            name="clinicalSigns"
-            :value="option.label"
-            class="mt-0.5 h-4 w-4 rounded border-input accent-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
-          />
-          <span class="text-sm text-foreground">{{ option.label }}</span>
-        </label>
-      </div>
-    </FieldSet>
   </section>
 </template>

@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import MainLayout from '@/layouts/MainLayout.vue'
 import AuthLayout from '@/layouts/AuthLayout.vue'
+import ParentLayout from '@/layouts/ParentLayout.vue'
+import MarketingLayout from '@/layouts/MarketingLayout.vue'
 import { useRoute } from 'vue-router'
 import { computed, nextTick, watch } from 'vue'
 import type { Component } from 'vue'
@@ -10,6 +12,8 @@ const route = useRoute()
 const layouts: Record<string, Component> = {
   main: MainLayout,
   auth: AuthLayout,
+  parent: ParentLayout,
+  marketing: MarketingLayout,
 }
 const layout = computed(() => layouts[route.meta.layout as string] ?? layouts.main)
 

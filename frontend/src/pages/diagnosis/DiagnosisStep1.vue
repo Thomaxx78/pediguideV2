@@ -1,51 +1,53 @@
 <script setup lang="ts">
-import type { DiagnosisFormState } from '@/stores/diagnosisForm'
-import type { FormFieldKey } from '@/pages/diagnosis/diagnosisValidation'
-import { Field, FieldError, FieldGroup, FieldLabel } from '@/components/ui/field'
+import { Field, FieldError, FieldLabel } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
+import { Segmented } from '@/components/ui/segmented'
+import type { DiagnosisFormState } from '@/stores/diagnosisForm'
+import type { FormFieldKey } from './diagnosisValidation'
+import { genderOptions } from './diagnosisOptions'
 
-defineProps<{
+const props = defineProps<{
   form: DiagnosisFormState
   errors: Partial<Record<FormFieldKey, string>>
+  maxBirthDate: string
   shouldShowError: (field: FormFieldKey) => boolean
   errorId: (field: FormFieldKey) => string
-  maxBirthDate: string
 }>()
 
 const emit = defineEmits<{
   (e: 'field-blur', field: FormFieldKey): void
   (e: 'field-input', field: FormFieldKey): void
+  (e: 'field-change', field: FormFieldKey): void
 }>()
+
+const onGenderChange = (value: string) => {
+  props.form.gender = value as DiagnosisFormState['gender']
+  emit('field-change', 'gender')
+}
 </script>
 
 <template>
-  <section class="space-y-6" aria-labelledby="step-1-title">
-    <div class="space-y-2">
-      <h2 id="step-1-title" tabindex="-1" class="text-h3 font-semibold text-foreground">
-        Préparer la consultation de votre enfant
-      </h2>
-      <p class="text-sm text-muted-foreground">
-        Remplissez les informations essentielles sur votre enfant.
+  <section class="space-y-7" aria-labelledby="step-1-title">
+    <header class="space-y-2">
+      <h1 id="step-1-title" tabindex="-1" class="font-display text-[26px] leading-[1.15] font-medium tracking-[-0.02em] text-[var(--color-ink)]">
+        Parlons un peu de votre enfant
+      </h1>
+      <p class="text-[15px] text-[var(--color-ink-2)]">
+        Ces informations aident le pédiatre à adapter son évaluation.
       </p>
-    </div>
+    </header>
 
-    <FieldGroup>
-      <Field :data-invalid="shouldShowError('childFirstName')">
-        <FieldLabel for="child-first-name">
-          Prénom de l'enfant
-          <span class="text-destructive" aria-hidden="true">*</span>
-          <span class="text-xs text-muted-foreground">(obligatoire)</span>
-        </FieldLabel>
+    <div class="space-y-5">
+      <!-- First name -->
+      <Field>
+        <FieldLabel for="child-first-name" required>Prénom</FieldLabel>
         <Input
           id="child-first-name"
           v-model="form.childFirstName"
-          type="text"
           name="childFirstName"
           autocomplete="given-name"
-          required
           :aria-invalid="Boolean(errors.childFirstName)"
           :aria-describedby="shouldShowError('childFirstName') ? errorId('childFirstName') : undefined"
-          placeholder="Ex : Arthur"
           @blur="emit('field-blur', 'childFirstName')"
           @input="emit('field-input', 'childFirstName')"
         />
@@ -56,45 +58,15 @@ const emit = defineEmits<{
         />
       </Field>
 
-      <Field :data-invalid="shouldShowError('childLastName')">
-        <FieldLabel for="child-last-name">
-          Nom de l'enfant
-          <span class="text-destructive" aria-hidden="true">*</span>
-          <span class="text-xs text-muted-foreground">(obligatoire)</span>
-        </FieldLabel>
-        <Input
-          id="child-last-name"
-          v-model="form.childLastName"
-          type="text"
-          name="childLastName"
-          autocomplete="family-name"
-          required
-          :aria-invalid="Boolean(errors.childLastName)"
-          :aria-describedby="shouldShowError('childLastName') ? errorId('childLastName') : undefined"
-          placeholder="Ex : Dupont"
-          @blur="emit('field-blur', 'childLastName')"
-          @input="emit('field-input', 'childLastName')"
-        />
-        <FieldError
-          v-if="shouldShowError('childLastName')"
-          :id="errorId('childLastName')"
-          :errors="[errors.childLastName]"
-        />
-      </Field>
-
-      <Field :data-invalid="shouldShowError('childBirthDate')">
-        <FieldLabel for="child-birth-date">
-          Date de naissance
-          <span class="text-destructive" aria-hidden="true">*</span>
-          <span class="text-xs text-muted-foreground">(obligatoire)</span>
-        </FieldLabel>
+      <!-- Birth date -->
+      <Field>
+        <FieldLabel for="child-birth-date" required>Date de naissance</FieldLabel>
         <Input
           id="child-birth-date"
           v-model="form.childBirthDate"
           type="date"
           name="childBirthDate"
           autocomplete="bday"
-          required
           :max="maxBirthDate"
           :aria-invalid="Boolean(errors.childBirthDate)"
           :aria-describedby="shouldShowError('childBirthDate') ? errorId('childBirthDate') : undefined"
@@ -108,31 +80,60 @@ const emit = defineEmits<{
         />
       </Field>
 
-      <Field :data-invalid="shouldShowError('consultationReason')">
-        <FieldLabel for="consultation-reason">
-          Qu'est-ce qui vous amène ?
-          <span class="text-destructive" aria-hidden="true">*</span>
-          <span class="text-xs text-muted-foreground">(obligatoire)</span>
-        </FieldLabel>
-        <textarea
-          id="consultation-reason"
-          v-model="form.consultationReason"
-          name="consultationReason"
-          rows="4"
-          required
-          class="min-h-[120px] w-full rounded-md border border-input bg-transparent px-3 py-2 text-base shadow-xs outline-none transition-[color,box-shadow] placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] aria-invalid:border-destructive aria-invalid:ring-destructive/20"
-          :aria-invalid="Boolean(errors.consultationReason)"
-          :aria-describedby="shouldShowError('consultationReason') ? errorId('consultationReason') : undefined"
-          placeholder="Ex : Fièvre depuis 2 jours, toux et fatigue."
-          @blur="emit('field-blur', 'consultationReason')"
-          @input="emit('field-input', 'consultationReason')"
-        ></textarea>
+      <div class="grid grid-cols-2 gap-3">
+        <!-- Weight -->
+        <Field>
+          <FieldLabel for="child-weight" required>Poids</FieldLabel>
+          <Input
+            id="child-weight"
+            v-model="form.weight"
+            name="weight"
+            type="text"
+            inputmode="decimal"
+            autocomplete="off"
+            affix="kg"
+            :aria-invalid="Boolean(errors.weight)"
+            :aria-describedby="shouldShowError('weight') ? errorId('weight') : undefined"
+            @blur="emit('field-blur', 'weight')"
+            @input="emit('field-input', 'weight')"
+          />
+          <FieldError
+            v-if="shouldShowError('weight')"
+            :id="errorId('weight')"
+            :errors="[errors.weight]"
+          />
+        </Field>
+
+        <!-- Height (optional) -->
+        <Field>
+          <FieldLabel for="child-height">Taille</FieldLabel>
+          <Input
+            id="child-height"
+            v-model="form.height"
+            name="height"
+            type="text"
+            inputmode="numeric"
+            autocomplete="off"
+            affix="cm"
+          />
+        </Field>
+      </div>
+
+      <!-- Gender -->
+      <Field id="child-gender">
+        <FieldLabel required>Genre</FieldLabel>
+        <Segmented
+          :model-value="form.gender"
+          :options="[...genderOptions]"
+          aria-label="Genre de l'enfant"
+          @update:model-value="onGenderChange"
+        />
         <FieldError
-          v-if="shouldShowError('consultationReason')"
-          :id="errorId('consultationReason')"
-          :errors="[errors.consultationReason]"
+          v-if="shouldShowError('gender')"
+          :id="errorId('gender')"
+          :errors="[errors.gender]"
         />
       </Field>
-    </FieldGroup>
+    </div>
   </section>
 </template>
