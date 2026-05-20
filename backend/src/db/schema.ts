@@ -186,6 +186,7 @@ export const response_table = pgTable('response', {
 
 export const response_to_question_table = pgTable('response_to_question', {
   id: uuid('id').defaultRandom().primaryKey(),
+  response_id: uuid('response_id').references(() => response_table.id, { onDelete: 'cascade' }).notNull(),
   question_id: uuid('question_id').references(() => diagnosis_question_table.id).notNull(),
   proposition_id: uuid('proposition_id').references(() => diagnosis_question_proposition_table.id),
   value: text('value').notNull(),
@@ -233,6 +234,10 @@ export const responseRelations = relations(response_table, ({ one }) => ({
 }))
 
 export const responseToQuestionRelations = relations(response_to_question_table, ({ one }) => ({
+  response: one(response_table, {
+    fields: [response_to_question_table.response_id],
+    references: [response_table.id],
+  }),
   question: one(diagnosis_question_table, {
     fields: [response_to_question_table.question_id],
     references: [diagnosis_question_table.id],

@@ -1,9 +1,16 @@
 import { Router, Request, Response } from 'express';
 import PDFDocument from 'pdfkit';
-import { desc, eq, and } from 'drizzle-orm';
+import { desc, eq, and, ne } from 'drizzle-orm';
 import jwt from 'jsonwebtoken';
 import { db } from '../db';
-import { aiSynthesisVersions, diagnosis, patientSessions, response_table, response_to_question_table } from '../db/schema';
+import {
+  aiSynthesisVersions,
+  diagnosis,
+  diagnosis_question_table,
+  patientSessions,
+  response_table,
+  response_to_question_table,
+} from '../db/schema';
 import { authenticateToken, type AuthRequest } from '../middleware/auth.middleware';
 import { computeTriageScore } from '../services/triage.service';
 
@@ -59,24 +66,135 @@ export interface DiagnosisResponse {
   }[]
 }
 
+const getAnswerByLabel = (
+  answers: Record<string, string | string[]>,
+  labelsByQuestionId: Map<string, string>,
+  labelPattern: RegExp,
+) => {
+  const entry = Object.entries(answers)
+    .find(([questionId]) => labelPattern.test(labelsByQuestionId.get(questionId) ?? ''));
+  const value = entry?.[1];
+  return Array.isArray(value) ? value[0] ?? '' : value ?? '';
+};
+
+const getArrayAnswerByLabel = (
+  answers: Record<string, string | string[]>,
+  labelsByQuestionId: Map<string, string>,
+  labelPattern: RegExp,
+) => {
+  const entry = Object.entries(answers)
+    .find(([questionId]) => labelPattern.test(labelsByQuestionId.get(questionId) ?? ''));
+  const value = entry?.[1];
+  return Array.isArray(value) ? value : value ? [value] : [];
+};
+
 diagnosisRouter.post('/', async (req: Request, res: Response) => {
   try {
     const data: DiagnosisResponse = req.body;
 
-    const results = await db.transaction(async tx => {
-      await Promise.all([
-        tx.update(response_table)
-        .set({
-          answeredAt: new Date
-        })
-        .where(eq(response_table.id, data.response_id)),
-        tx.insert(response_to_question_table)
-        .values(data.responses)
-        .returning()
-      ])
-    })
+    if (!data.response_id || !Array.isArray(data.responses)) {
+      return res.status(400).json({ error: 'Payload invalide' });
+    }
 
-    res.json({ success: true, id: data.response_id });
+    const [response] = await db.select()
+      .from(response_table)
+      .where(eq(response_table.id, data.response_id))
+      .limit(1);
+
+    if (!response?.diagnosis_id) {
+      return res.status(404).json({ error: 'Réponse introuvable' });
+    }
+
+    const [record] = await db.select()
+      .from(diagnosis)
+      .where(eq(diagnosis.id, response.diagnosis_id))
+      .limit(1);
+
+    if (!record) {
+      return res.status(404).json({ error: 'Formulaire introuvable' });
+    }
+
+    const questions = await db.select({
+      id: diagnosis_question_table.id,
+      label: diagnosis_question_table.question,
+    })
+      .from(diagnosis_question_table)
+      .where(eq(diagnosis_question_table.diagnosis_id, record.id));
+
+    const labelsByQuestionId = new Map(questions.map((question) => [question.id, question.label]));
+    const validQuestionIds = new Set(labelsByQuestionId.keys());
+    const invalidQuestion = data.responses.find((response) => !validQuestionIds.has(response.question_id));
+    if (invalidQuestion) {
+      return res.status(400).json({ error: 'Question invalide pour ce formulaire' });
+    }
+
+    const customAnswers = data.responses.reduce<Record<string, string | string[]>>((acc, response) => {
+      const current = acc[response.question_id];
+      if (current === undefined) {
+        acc[response.question_id] = response.value;
+      } else if (Array.isArray(current)) {
+        current.push(response.value);
+      } else {
+        acc[response.question_id] = [current, response.value];
+      }
+      return acc;
+    }, {});
+
+    const childBirthDate = getAnswerByLabel(customAnswers, labelsByQuestionId, /naissance/i) || 'N/A';
+    const triage = computeTriageScore({
+      clinicalSigns: getArrayAnswerByLabel(customAnswers, labelsByQuestionId, /signes cliniques/i),
+      behaviorChanges: getArrayAnswerByLabel(customAnswers, labelsByQuestionId, /comportement/i),
+      worryLevel: getAnswerByLabel(customAnswers, labelsByQuestionId, /inquiétude/i),
+      duration: getAnswerByLabel(customAnswers, labelsByQuestionId, /combien de temps|durée|depuis/i),
+      childBirthDate,
+    });
+
+    await db.transaction(async tx => {
+      await tx.update(response_table)
+        .set({
+          answeredAt: new Date(),
+        })
+        .where(eq(response_table.id, data.response_id));
+
+      await tx.delete(response_to_question_table)
+        .where(eq(response_to_question_table.response_id, data.response_id));
+
+      const responseRows = data.responses.map((response) => ({
+        ...response,
+        response_id: data.response_id,
+      }));
+
+      if (responseRows.length) {
+        await tx.insert(response_to_question_table).values(responseRows).returning();
+      }
+
+      await tx.update(diagnosis)
+        .set({
+          childFirstName: getAnswerByLabel(customAnswers, labelsByQuestionId, /prénom/i) || null,
+          childLastName: getAnswerByLabel(customAnswers, labelsByQuestionId, /nom/i) || null,
+          childBirthDate,
+          consultationReason: getAnswerByLabel(customAnswers, labelsByQuestionId, /motif/i) || null,
+          behaviorChanges: getArrayAnswerByLabel(customAnswers, labelsByQuestionId, /comportement/i),
+          clinicalSigns: getArrayAnswerByLabel(customAnswers, labelsByQuestionId, /signes cliniques/i),
+          duration: getAnswerByLabel(customAnswers, labelsByQuestionId, /combien de temps|durée|depuis/i) || null,
+          worryLevel: getAnswerByLabel(customAnswers, labelsByQuestionId, /inquiétude/i) || null,
+          actionsTaken: getArrayAnswerByLabel(customAnswers, labelsByQuestionId, /actions/i),
+          additionalNotes: getAnswerByLabel(customAnswers, labelsByQuestionId, /complémentaires|message libre/i) || '',
+          customAnswers,
+          status: 'new',
+          triageLevel: triage.level,
+          triageScore: String(triage.score),
+        })
+        .where(eq(diagnosis.id, record.id));
+
+      if (record.sessionId) {
+        await tx.update(patientSessions)
+          .set({ status: 'completed' })
+          .where(eq(patientSessions.id, record.sessionId));
+      }
+    });
+
+    res.json({ success: true, id: record.id, response_id: data.response_id });
   } catch (error) {
     console.error("Détail de l'erreur", error);
     res.status(500).json({ error: "Erreur lors de l'enregistrement" });
@@ -470,7 +588,11 @@ diagnosisRouter.get('/', authenticateToken, async (req: AuthRequest, res: Respon
   try {
     const doctorId = req.user?.id;
     const list = await db.select().from(diagnosis)
-      .where(eq(diagnosis.doctorId, doctorId!))
+      .where(and(
+        eq(diagnosis.doctorId, doctorId!),
+        ne(diagnosis.status, 'template'),
+        ne(diagnosis.status, 'pending_response'),
+      ))
       .orderBy(desc(diagnosis.createdAt));
     res.json(list);
   } catch (error) {

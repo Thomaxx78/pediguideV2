@@ -186,7 +186,7 @@ doctorsRouter.post('/create-form-response', authenticateToken, async (req: AuthR
 
 doctorsRouter.get('/forms', authenticateToken, async (req: AuthRequest, res: Response): Promise<any> => {
   try {
-    return await db.query.diagnosis.findMany({
+    const forms = await db.query.diagnosis.findMany({
       where: eq(diagnosis.doctorId, req.user!.id),
       with: {
         questions: {
@@ -204,7 +204,9 @@ doctorsRouter.get('/forms', authenticateToken, async (req: AuthRequest, res: Res
           }
         }
       }
-    })
+    });
+
+    return res.json(forms);
   } catch (error: any) {
     console.error('Error fetching doctor forms:', error);
     res.status(500).json({
