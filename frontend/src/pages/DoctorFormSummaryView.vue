@@ -9,7 +9,12 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card'
-import { doctorFormsApi, type DoctorFormDetail, type AiSynthesis } from '@/services/doctorFormsApi'
+import {
+  doctorFormsApi,
+  type DoctorFormDetail,
+  type AiSynthesis,
+  type AiSynthesisVersion,
+} from '@/services/doctorFormsApi'
 import api from '@/services/api'
 import { downloadDiagnosisPdf } from '@/services/pdfDownload'
 
@@ -21,6 +26,7 @@ const isLoading = ref(true)
 const error = ref<string | null>(null)
 
 const synthesis = ref<AiSynthesis | null>(null)
+const synthesisVersions = ref<AiSynthesisVersion[]>([])
 const isSynthesizing = ref(false)
 const synthesisError = ref<string | null>(null)
 const isDownloadingPdf = ref(false)
@@ -59,6 +65,7 @@ const loadForm = async () => {
 
   try {
     form.value = await doctorFormsApi.get(formId.value)
+    synthesisVersions.value = form.value.aiSynthesisVersions
     if (form.value.aiSynthesis) {
       synthesis.value = form.value.aiSynthesis
     }
@@ -76,8 +83,14 @@ const generateSynthesis = async () => {
   synthesisError.value = null
 
   try {
-    const result = await api.diagnosis.synthesize(formId.value) as { synthesis: AiSynthesis }
+    const result = await api.diagnosis.synthesize(formId.value) as {
+      synthesis: AiSynthesis
+      version?: AiSynthesisVersion
+    }
     synthesis.value = result.synthesis
+    if (result.version) {
+      synthesisVersions.value = [result.version, ...synthesisVersions.value]
+    }
   } catch (err: unknown) {
     synthesisError.value = (err as Error).message || 'Erreur lors de la génération.'
   } finally {
@@ -105,6 +118,7 @@ onMounted(() => {
 
 watch(formId, () => {
   synthesis.value = null
+  synthesisVersions.value = []
   loadForm()
 })
 </script>
@@ -168,6 +182,14 @@ watch(formId, () => {
               <Button
                 variant="outline"
                 size="sm"
+                :disabled="isSynthesizing"
+                @click="generateSynthesis"
+              >
+                {{ isSynthesizing ? 'Régénération...' : 'Régénérer' }}
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
                 :disabled="isDownloadingPdf"
                 @click="downloadPdf"
               >
@@ -226,6 +248,24 @@ watch(formId, () => {
             <p class="border-t border-border/70 pt-3 text-xs text-muted-foreground">
               {{ synthesis.disclaimer }}
             </p>
+
+            <div v-if="synthesisVersions.length" class="border-t border-border/70 pt-4">
+              <p class="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                Versions de synthèse
+              </p>
+              <ol class="mt-2 space-y-2 text-sm">
+                <li
+                  v-for="version in synthesisVersions"
+                  :key="version.id"
+                  class="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border/70 px-3 py-2"
+                >
+                  <span class="font-medium text-foreground">Version {{ version.version }}</span>
+                  <span class="text-xs text-muted-foreground">
+                    {{ formatDate(version.createdAt) }} · {{ version.model }}
+                  </span>
+                </li>
+              </ol>
+            </div>
           </CardContent>
         </Card>
 

@@ -1,4 +1,4 @@
-import { pgTable, uuid, text, timestamp, json, jsonb, varchar, boolean } from 'drizzle-orm/pg-core';
+import { pgTable, uuid, text, timestamp, json, jsonb, varchar, boolean, integer, unique } from 'drizzle-orm/pg-core';
 
 export interface AiSynthesis {
   motif_principal: string;
@@ -106,3 +106,16 @@ export const diagnosis = pgTable('formulaires', {
   childId: uuid('child_id').references(() => children.id),
   nir: text('nir'),
 });
+
+export const aiSynthesisVersions = pgTable('ai_synthesis_versions', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  diagnosisId: uuid('diagnosis_id').notNull().references(() => diagnosis.id, { onDelete: 'cascade' }),
+  version: integer('version').notNull(),
+  synthesis: jsonb('synthesis').$type<AiSynthesis>().notNull(),
+  model: text('model').notNull(),
+  promptVersion: text('prompt_version').notNull(),
+  generatedByDoctorId: uuid('generated_by_doctor_id').references(() => doctors.id),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
+}, (table) => [
+  unique('ai_synthesis_versions_diagnosis_version_unique').on(table.diagnosisId, table.version),
+]);

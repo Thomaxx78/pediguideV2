@@ -3,7 +3,7 @@ import PDFDocument from 'pdfkit';
 import { desc, eq, and } from 'drizzle-orm';
 import jwt from 'jsonwebtoken';
 import { db } from '../db';
-import { diagnosis, patientSessions } from '../db/schema';
+import { aiSynthesisVersions, diagnosis, patientSessions } from '../db/schema';
 import { authenticateToken, type AuthRequest } from '../middleware/auth.middleware';
 
 export const diagnosisRouter = Router();
@@ -109,6 +109,11 @@ diagnosisRouter.get('/:id/pdf', async (req: Request, res: Response) => {
       return res.status(403).json({ error: 'Accès interdit' });
     }
 
+    const [latestSynthesisVersion] = await db.select().from(aiSynthesisVersions)
+      .where(eq(aiSynthesisVersions.diagnosisId, id))
+      .orderBy(desc(aiSynthesisVersions.version))
+      .limit(1);
+
     const fileDate = formatDate(new Date());
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `attachment; filename="pediguide-compte-rendu-${fileDate}.pdf"`);
@@ -201,6 +206,11 @@ diagnosisRouter.get('/:id/pdf', async (req: Request, res: Response) => {
 
     if (record.aiSynthesis) {
       addSectionTitle('Synthèse IA');
+      if (latestSynthesisVersion) {
+        addKeyValue('Version :', `v${latestSynthesisVersion.version} - ${formatDate(new Date(latestSynthesisVersion.createdAt ?? new Date()))}`);
+        addKeyValue('Modèle :', latestSynthesisVersion.model);
+        addKeyValue('Prompt :', latestSynthesisVersion.promptVersion);
+      }
       addKeyValue('Priorité :', priorityLabels[record.aiSynthesis.niveau_priorite] ?? record.aiSynthesis.niveau_priorite);
       addKeyValue(
         "Niveau d'inquiétude parent :",

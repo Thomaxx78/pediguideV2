@@ -12,6 +12,17 @@ export interface AiSynthesis {
   disclaimer: string
 }
 
+export interface AiSynthesisVersion {
+  id: string
+  diagnosisId: string
+  version: number
+  synthesis: AiSynthesis
+  model: string
+  promptVersion: string
+  generatedByDoctorId?: string | null
+  createdAt: string
+}
+
 export interface DiagnosisRecord {
   id: string
   createdAt: string
@@ -27,6 +38,7 @@ export interface DiagnosisRecord {
   additionalNotes?: string | null
   status?: string | null
   aiSynthesis?: AiSynthesis | null
+  aiSynthesisVersions?: AiSynthesisVersion[]
 }
 
 export interface DoctorFormSummary {
@@ -47,6 +59,7 @@ export interface DoctorFormDetail extends DoctorFormSummary {
   actionsTaken: string[]
   additionalNotes: string
   aiSynthesis: AiSynthesis | null
+  aiSynthesisVersions: AiSynthesisVersion[]
 }
 
 export interface DoctorFormsListParams {
@@ -80,6 +93,7 @@ const toDetail = (record: DiagnosisRecord): DoctorFormDetail => ({
   actionsTaken: safeArray(record.actionsTaken),
   additionalNotes: record.additionalNotes ?? '',
   aiSynthesis: record.aiSynthesis ?? null,
+  aiSynthesisVersions: record.aiSynthesisVersions ?? [],
 })
 
 const matchesSearch = (record: DiagnosisRecord, search: string) => {
