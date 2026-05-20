@@ -43,6 +43,13 @@
       "when": 1779284400000,
       "tag": "0005_parent_reminders",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1779266806077,
+      "tag": "0006_pediguide_parent_redesign",
+      "breakpoints": true
     }
   ]
 }

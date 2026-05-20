@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { RouterLink, useRouter } from 'vue-router'
 import { Button } from '@/components/ui/button'
-import { Field, FieldDescription, FieldGroup, FieldLabel } from '@/components/ui/field'
+import { Field, FieldError, FieldLabel } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
 import api from '@/services/api'
 
@@ -20,21 +20,15 @@ async function handleSubmit(e: Event) {
 
   try {
     const response = await api.auth.login(email.value, password.value)
-    
-    // Explicitly check success before redirecting
-    if (response) {
-       router.push('/profile')
-    }
+    if (response) router.push('/profile')
   } catch (err: unknown) {
-    const errorObj = err as Error;
+    const errorObj = err as Error
     console.error('Login error:', errorObj)
-    
-    // Improve error messages for user
     const errorMessage = errorObj.message || ''
     const lowerError = errorMessage.toLowerCase()
-    
+
     if (lowerError.includes('401') || lowerError.includes('invalid') || lowerError.includes('credentials')) {
-      error.value = 'Email ou mot de passe incorrect'
+      error.value = 'Email ou mot de passe incorrect.'
     } else {
       error.value = 'Erreur de connexion. Veuillez vérifier vos identifiants ou réessayer plus tard.'
     }
@@ -45,53 +39,53 @@ async function handleSubmit(e: Event) {
 </script>
 
 <template>
-  <form @submit="handleSubmit">
-    <FieldGroup>
-      <div v-if="error" class="rounded-md bg-red-50 p-3 text-sm text-red-800 mb-4">
-        {{ error }}
-      </div>
+  <form class="space-y-5" @submit="handleSubmit" novalidate>
+    <FieldError v-if="error" :errors="[error]" />
 
-      <Field>
-        <FieldLabel for="email"> Email </FieldLabel>
-        <Input
-          id="email"
-          v-model="email"
-          type="email"
-          name="email"
-          autocomplete="email"
-          placeholder="Entrez votre email"
-          required
-          :disabled="loading"
-        />
-      </Field>
-      <Field>
-        <div class="flex items-center">
-          <FieldLabel for="password"> Mot de passe </FieldLabel>
-        </div>
-        <Input
-          id="password"
-          v-model="password"
-          type="password"
-          name="password"
-          autocomplete="current-password"
-          placeholder="Entrez votre mot de passe"
-          required
-          :disabled="loading"
-        />
-      </Field>
-      <Field>
-        <Button type="submit" :disabled="loading">
-          {{ loading ? 'Connexion...' : 'Se connecter' }}
-        </Button>
-        <FieldDescription class="text-center">
-          Pas encore de compte ?
-          <RouterLink
-            to="/register"
-          >
-            Créer un compte
-          </RouterLink>
-        </FieldDescription>
-      </Field>
-    </FieldGroup>
+    <Field>
+      <FieldLabel for="email" required>Email professionnel</FieldLabel>
+      <Input
+        id="email"
+        v-model="email"
+        type="email"
+        name="email"
+        autocomplete="email"
+        placeholder="c.reynaud@cabinet-bichat.fr"
+        required
+        :disabled="loading"
+      />
+    </Field>
+
+    <Field>
+      <div class="flex items-center justify-between">
+        <FieldLabel for="password" required>Mot de passe</FieldLabel>
+        <a
+          href="#"
+          class="text-[12.5px] text-[var(--color-muted-strong)] hover:text-[var(--color-ink)] hover:underline"
+          @click.prevent
+        >Mot de passe oublié&nbsp;?</a>
+      </div>
+      <Input
+        id="password"
+        v-model="password"
+        type="password"
+        name="password"
+        autocomplete="current-password"
+        placeholder="••••••••"
+        required
+        :disabled="loading"
+      />
+    </Field>
+
+    <Button type="submit" :block="true" :disabled="loading">
+      {{ loading ? 'Connexion…' : 'Se connecter' }}
+    </Button>
+
+    <p class="text-center text-[13.5px] text-[var(--color-ink-2)]">
+      Pas encore de compte&nbsp;?
+      <RouterLink to="/register" class="font-medium text-primary hover:underline">
+        Créer un compte
+      </RouterLink>
+    </p>
   </form>
 </template>

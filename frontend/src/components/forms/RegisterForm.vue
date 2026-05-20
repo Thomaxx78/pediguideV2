@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { RouterLink, useRouter } from 'vue-router'
 import { Button } from '@/components/ui/button'
-import { Field, FieldDescription, FieldGroup, FieldLabel } from '@/components/ui/field'
+import { Field, FieldError, FieldLabel } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
 import api from '@/services/api'
 
@@ -12,7 +12,7 @@ const rpps = ref('')
 const email = ref('')
 const password = ref('')
 const confirmPassword = ref('')
-const cpsCardUrl = ref('')
+const accept = ref(false)
 const error = ref('')
 const loading = ref(false)
 
@@ -20,21 +20,24 @@ async function handleSubmit(e: Event) {
   e.preventDefault()
   error.value = ''
 
-  // Validate password confirmation
-  if (password.value !== confirmPassword.value) {
-    error.value = 'Les mots de passe ne correspondent pas'
+  if (!/^\d{11}$/.test(rpps.value.replace(/\s/g, ''))) {
+    error.value = 'Le numéro RPPS doit comporter 11 chiffres.'
     return
   }
-
-  // Validate RPPS (should be 11 digits)
-  if (!/^\d{11}$/.test(rpps.value)) {
-    error.value = 'Le numéro RPPS doit contenir exactement 11 chiffres'
+  if (!email.value.includes('@')) {
+    error.value = 'Adresse email invalide.'
     return
   }
-
-  // Validate password strength (minimum 8 characters)
   if (password.value.length < 8) {
-    error.value = 'Le mot de passe doit contenir au moins 8 caractères'
+    error.value = 'Le mot de passe doit contenir au moins 8 caractères.'
+    return
+  }
+  if (password.value !== confirmPassword.value) {
+    error.value = 'Les mots de passe ne correspondent pas.'
+    return
+  }
+  if (!accept.value) {
+    error.value = 'Vous devez accepter les CGU.'
     return
   }
 
@@ -45,16 +48,11 @@ async function handleSubmit(e: Event) {
       rpps: rpps.value,
       email: email.value,
       password: password.value,
-      cpsCardUrl: cpsCardUrl.value || undefined,
     })
-
-    // Registration successful - redirect to login
     router.push('/login')
   } catch (err: unknown) {
-    const errorObj = err as Error;
+    const errorObj = err as Error
     console.error('Registration error:', errorObj)
-
-    // Handle specific error messages
     const errorMessage = errorObj.message || ''
     const lowerError = errorMessage.toLowerCase()
 
@@ -64,11 +62,11 @@ async function handleSubmit(e: Event) {
       lowerError.includes('déjà utilisé') ||
       lowerError.includes('duplicate')
     ) {
-      error.value = 'Ce numéro RPPS ou cet email est déjà utilisé'
+      error.value = 'Ce numéro RPPS ou cet email est déjà utilisé.'
     } else if (lowerError.includes('serveur') || lowerError.includes('backend')) {
-      error.value = errorMessage // Use the full server error message
+      error.value = errorMessage
     } else {
-      error.value = errorMessage || 'Erreur lors de l\'inscription. Veuillez réessayer.'
+      error.value = errorMessage || "Erreur lors de l'inscription. Veuillez réessayer."
     }
   } finally {
     loading.value = false
@@ -77,91 +75,96 @@ async function handleSubmit(e: Event) {
 </script>
 
 <template>
-  <form @submit="handleSubmit">
-    <FieldGroup>
-      <div v-if="error" class="rounded-md bg-red-50 p-3 text-sm text-red-800 mb-4">
-        {{ error }}
-      </div>
+  <form class="space-y-5" @submit="handleSubmit" novalidate>
+    <FieldError v-if="error" :errors="[error]" />
 
+    <Field>
+      <FieldLabel for="rpps-number" required>Numéro RPPS</FieldLabel>
+      <Input
+        id="rpps-number"
+        v-model="rpps"
+        type="text"
+        inputmode="numeric"
+        name="rppsNumber"
+        autocomplete="off"
+        placeholder="10003456789"
+        pattern="\d{11}"
+        required
+        :disabled="loading"
+      />
+      <p class="text-[12.5px] text-[var(--color-muted-strong)]">
+        11 chiffres — vérifié auprès de l'annuaire des professionnels de santé.
+      </p>
+    </Field>
+
+    <Field>
+      <FieldLabel for="email" required>Email professionnel</FieldLabel>
+      <Input
+        id="email"
+        v-model="email"
+        type="email"
+        name="email"
+        autocomplete="email"
+        placeholder="c.reynaud@cabinet-bichat.fr"
+        required
+        :disabled="loading"
+      />
+    </Field>
+
+    <div class="grid gap-4 sm:grid-cols-2">
       <Field>
-        <FieldLabel for="rpps-number"> Numéro RPPS </FieldLabel>
-        <Input
-          id="rpps-number"
-          v-model="rpps"
-          type="text"
-          name="rppsNumber"
-          autocomplete="off"
-          placeholder="Entrez votre numéro RPPS (11 chiffres)"
-          pattern="\d{11}"
-          required
-          :disabled="loading"
-        />
-      </Field>
-      <Field>
-        <FieldLabel for="email"> Email </FieldLabel>
-        <Input
-          id="email"
-          v-model="email"
-          type="email"
-          name="email"
-          autocomplete="email"
-          placeholder="Entrez votre email"
-          required
-          :disabled="loading"
-        />
-      </Field>
-      <Field>
-        <FieldLabel for="password"> Mot de passe </FieldLabel>
+        <FieldLabel for="password" required>Mot de passe</FieldLabel>
         <Input
           id="password"
           v-model="password"
           type="password"
           name="password"
           autocomplete="new-password"
-          placeholder="Entrez votre mot de passe (min. 8 caractères)"
+          placeholder="••••••••"
           minlength="8"
           required
           :disabled="loading"
         />
       </Field>
       <Field>
-        <FieldLabel for="confirm-password"> Confirmation </FieldLabel>
+        <FieldLabel for="confirm-password" required>Confirmation</FieldLabel>
         <Input
           id="confirm-password"
           v-model="confirmPassword"
           type="password"
           name="confirmPassword"
           autocomplete="new-password"
-          placeholder="Confirmez votre mot de passe"
+          placeholder="••••••••"
           minlength="8"
           required
           :disabled="loading"
         />
       </Field>
-      <Field>
-        <FieldLabel for="cps-card"> Carte CPS (optionnel) </FieldLabel>
-        <Input
-          id="cps-card"
-          v-model="cpsCardUrl"
-          type="text"
-          name="cpsCard"
-          placeholder="URL de votre carte CPS"
-          :disabled="loading"
-        />
-      </Field>
-      <FieldGroup>
-        <Field>
-          <Button type="submit" :disabled="loading">
-            {{ loading ? 'Création en cours...' : 'Créer un compte' }}
-          </Button>
-          <FieldDescription class="px-6 text-center">
-            Vous avez déjà un compte ?
-            <RouterLink to="/login">
-              Se connecter
-            </RouterLink>
-          </FieldDescription>
-        </Field>
-      </FieldGroup>
-    </FieldGroup>
+    </div>
+
+    <label class="flex items-start gap-2.5 text-[13.5px] text-[var(--color-ink-2)] cursor-pointer select-none">
+      <input
+        v-model="accept"
+        type="checkbox"
+        class="mt-0.5 size-4 rounded border-[var(--color-line-2)] accent-primary"
+      />
+      <span>
+        J'accepte les
+        <RouterLink to="/conditions-utilisation" class="text-primary hover:underline">CGU</RouterLink>
+        et la
+        <RouterLink to="/confidentialite" class="text-primary hover:underline">politique de confidentialité</RouterLink>.
+      </span>
+    </label>
+
+    <Button type="submit" :block="true" :disabled="loading">
+      {{ loading ? 'Création…' : 'Créer le compte' }}
+    </Button>
+
+    <p class="text-center text-[13.5px] text-[var(--color-ink-2)]">
+      Vous avez déjà un compte&nbsp;?
+      <RouterLink to="/login" class="font-medium text-primary hover:underline">
+        Se connecter
+      </RouterLink>
+    </p>
   </form>
 </template>

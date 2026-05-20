@@ -1,14 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card'
-import { Field, FieldLabel } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
 import DoctorFormsTable from '@/components/doctor/DoctorFormsTable.vue'
 import CreateSessionModal from '@/components/doctor/CreateSessionModal.vue'
@@ -47,7 +39,7 @@ const resultsLabel = computed(() => {
   if (error.value) return 'Erreur de chargement.'
   const count = forms.value.length
   if (count === 0) return 'Aucun formulaire trouvé.'
-  return `${count} formulaire${count > 1 ? 's' : ''} affiché${count > 1 ? 's' : ''}.`
+  return `${count} formulaire${count > 1 ? 's' : ''} reçu${count > 1 ? 's' : ''}`
 })
 
 watch(search, (value) => {
@@ -67,55 +59,47 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="mx-auto flex w-full max-w-5xl flex-col gap-6 py-10">
-    <header class="space-y-2">
-      <h1 id="doctor-dashboard-title" class="text-3xl font-semibold tracking-tight text-foreground">
-        Tableau de bord médecin
-      </h1>
-      <p class="text-muted-foreground">
-        Retrouvez les formulaires transmis par vos patients.
-      </p>
+  <div class="mx-auto flex w-full max-w-6xl flex-col gap-6 px-4 py-8 md:py-12">
+    <!-- Page header -->
+    <header class="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+      <div class="space-y-2">
+        <p class="text-[11px] font-medium uppercase tracking-[0.08em] text-[var(--color-muted-strong)]">
+          Tableau de bord
+        </p>
+        <h1
+          id="doctor-dashboard-title"
+          class="font-display text-3xl font-medium tracking-[-0.02em] text-[var(--color-ink)]"
+        >
+          Boîte de réception
+        </h1>
+        <p class="text-sm text-[var(--color-ink-2)]" aria-live="polite">
+          {{ resultsLabel }}
+        </p>
+      </div>
+      <CreateSessionModal @created="loadForms" />
     </header>
 
-    <section aria-labelledby="doctor-dashboard-section-title">
-      <Card>
-        <CardHeader class="space-y-3">
-          <div class="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
-            <div>
-              <CardTitle id="doctor-dashboard-section-title" as="h2" class="text-xl">
-                Formulaires reçus
-              </CardTitle>
-              <CardDescription>
-                Cliquez sur une ligne pour consulter le résumé.
-              </CardDescription>
-            </div>
-            <CreateSessionModal @created="loadForms" />
-          </div>
+    <!-- Search -->
+    <div class="w-full md:max-w-md">
+      <label for="doctor-search" class="sr-only">Rechercher un formulaire</label>
+      <Input
+        id="doctor-search"
+        v-model="search"
+        name="search"
+        type="search"
+        autocomplete="off"
+        placeholder="Prénom, nom, identifiant ou motif…"
+        size="md"
+      />
+    </div>
 
-          <Field class="max-w-md">
-            <FieldLabel for="doctor-search">Recherche</FieldLabel>
-            <Input
-              id="doctor-search"
-              v-model="search"
-              name="search"
-              type="search"
-              autocomplete="off"
-              placeholder="Prénom, nom, identifiant ou motif"
-            />
-            <p class="text-xs text-muted-foreground" aria-live="polite">
-              {{ resultsLabel }}
-            </p>
-          </Field>
-        </CardHeader>
-        <CardContent>
-          <DoctorFormsTable
-            :forms="forms"
-            :is-loading="isLoading"
-            :error="error"
-            @select="handleSelect"
-          />
-        </CardContent>
-      </Card>
-    </section>
+    <!-- Table -->
+    <DoctorFormsTable
+      :forms="forms"
+      :is-loading="isLoading"
+      :error="error"
+      :search-active="Boolean(debouncedSearch)"
+      @select="handleSelect"
+    />
   </div>
 </template>

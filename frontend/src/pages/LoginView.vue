@@ -1,24 +1,38 @@
 <script setup lang="ts">
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { cn } from '@/lib/utils.ts'
-import type { HTMLAttributes } from 'vue'
 import LoginForm from '@/components/forms/LoginForm.vue'
+import AuthAside from '@/components/forms/AuthAside.vue'
 
-const props = defineProps<{
-  class?: HTMLAttributes['class']
-}>()
+const asideItems = [
+  { title: 'Compte vérifié manuellement', body: 'Sous 48 h ouvrées via votre numéro RPPS.' },
+  { title: 'Réservé aux professionnels', body: 'Pédiatres et médecins généralistes.' },
+  { title: 'Sécurité renforcée', body: 'Authentification chiffrée, données HDS.' },
+]
 </script>
 
 <template>
-  <div :class="cn('flex flex-col gap-6', props.class)">
-    <Card>
-      <CardHeader>
-        <CardTitle as="h1">Connexion à votre compte</CardTitle>
-        <CardDescription>Entrez vos informations pour vous connecter.</CardDescription>
-      </CardHeader>
-      <CardContent>
+  <!-- Form column -->
+  <section class="flex items-center justify-center px-5 py-10 md:px-10 md:py-16">
+    <div class="w-full max-w-[420px]">
+      <p class="text-[11px] font-medium uppercase tracking-[0.08em] text-[var(--color-muted-strong)]">
+        Connexion
+      </p>
+      <h1 class="mt-2 font-display text-[28px] font-medium tracking-[-0.02em] text-[var(--color-ink)]">
+        Espace pédiatre
+      </h1>
+      <p class="mt-2 text-[14.5px] text-[var(--color-ink-2)]">
+        Entrez vos identifiants pour accéder à votre tableau de bord.
+      </p>
+
+      <div class="mt-7">
         <LoginForm />
-      </CardContent>
-    </Card>
-  </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Aside -->
+  <AuthAside
+    eyebrow="Pediguide"
+    heading="Vos parents arrivent déjà préparés à la consultation."
+    :items="asideItems"
+  />
 </template>
