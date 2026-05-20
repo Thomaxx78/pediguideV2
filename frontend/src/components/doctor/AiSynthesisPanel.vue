@@ -29,9 +29,9 @@ const priorityLabel: Record<AiSynthesis['niveau_priorite'], string> = {
 }
 
 const priorityToneClasses: Record<AiSynthesis['niveau_priorite'], string> = {
-  non_urgent: 'border-[color-mix(in_oklab,var(--color-sev-1)_30%,transparent)] bg-[color-mix(in_oklab,var(--color-sev-1)_8%,var(--color-bg))] text-[var(--color-sev-1)]',
-  a_surveiller: 'border-[color-mix(in_oklab,var(--color-sev-3)_30%,transparent)] bg-[color-mix(in_oklab,var(--color-sev-3)_8%,var(--color-bg))] text-[var(--color-sev-3)]',
-  urgent: 'border-[color-mix(in_oklab,var(--color-sev-5)_30%,transparent)] bg-[color-mix(in_oklab,var(--color-sev-5)_8%,var(--color-bg))] text-[var(--color-sev-5)]',
+  non_urgent: 'border-[color-mix(in_oklab,var(--color-sev-1)_30%,transparent)] bg-[color-mix(in_oklab,var(--color-sev-1)_10%,var(--color-bg))] text-[var(--color-sev-1)]',
+  a_surveiller: 'border-[color-mix(in_oklab,var(--color-sev-3)_30%,transparent)] bg-[color-mix(in_oklab,var(--color-sev-3)_10%,var(--color-bg))] text-[var(--color-sev-3)]',
+  urgent: 'border-[color-mix(in_oklab,var(--color-sev-5)_30%,transparent)] bg-[color-mix(in_oklab,var(--color-sev-5)_10%,var(--color-bg))] text-[var(--color-sev-5)]',
 }
 
 const onGenerate = () => emit('generate')
@@ -130,7 +130,7 @@ const onGenerate = () => emit('generate')
       <!-- Points d'attention (red flags equivalent — comes from AI) -->
       <div
         v-if="synthesis.points_attention.length"
-        class="rounded-[var(--r-md)] border border-[color-mix(in_oklab,var(--color-sev-5)_25%,transparent)] bg-[color-mix(in_oklab,var(--color-sev-5)_6%,var(--color-bg))] p-4"
+        class="rounded-[var(--r-md)] border border-[color-mix(in_oklab,var(--color-sev-5)_25%,transparent)] bg-[color-mix(in_oklab,var(--color-sev-5)_10%,var(--color-bg))] p-4"
       >
         <p class="text-[11px] font-medium uppercase tracking-wide text-[var(--color-sev-5)]">
           Points d'attention clinique
@@ -169,13 +169,9 @@ const onGenerate = () => emit('generate')
       <!-- Footer — disclaimer + regenerate -->
       <footer class="mt-2 flex flex-col items-start gap-3 border-t border-[var(--color-line)] pt-4 text-[12px] text-[var(--color-muted-strong)] sm:flex-row sm:items-center sm:justify-between">
         <span class="max-w-[480px]">{{ synthesis.disclaimer }}</span>
-        <button
-          type="button"
-          class="rounded-[var(--r-sm)] px-2.5 py-1.5 text-[12.5px] font-medium text-[var(--color-ink-2)] transition-colors hover:bg-[var(--color-surface-2)] hover:text-[var(--color-ink)] focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/45"
-          @click="onGenerate"
-        >
+        <Button variant="ghost" size="xs" type="button" @click="onGenerate">
           Régénérer
-        </button>
+        </Button>
       </footer>
     </div>
   </section>
