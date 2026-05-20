@@ -254,7 +254,7 @@ const goToParentDemo = () => router.push('/pre-consultation')
             </Button>
             <button
               type="button"
-              class="rounded-[var(--r-sm)] border border-white/20 bg-transparent px-4 py-2.5 text-[14px] font-medium text-white transition-colors hover:bg-white/10 focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-white/30 md:self-end"
+              class="rounded-[var(--r-sm)] border border-white/20 bg-white/10 px-4 py-2.5 text-[14px] font-medium text-white transition-colors hover:bg-white/15 focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-white/30 md:self-end"
               @click="goToLogin"
             >
               J'ai déjà un compte
