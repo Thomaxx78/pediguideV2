@@ -4,6 +4,7 @@ import { storeToRefs } from 'pinia'
 import { useRouter } from 'vue-router'
 import { Button } from '@/components/ui/button'
 import { Field, FieldError } from '@/components/ui/field'
+import { ViewportShell } from '@/components/ui/viewport-shell'
 import { useDiagnosisFormStore } from '@/stores/diagnosisForm'
 import DiagnosisHeader from '@/pages/diagnosis/DiagnosisHeader.vue'
 import DiagnosisStep1 from '@/pages/diagnosis/DiagnosisStep1.vue'
@@ -29,8 +30,7 @@ const step = ref(1)
 const isLoading = ref(false)
 const errorMessage = ref('')
 const stepAttempted = ref(false)
-
-const progress = computed(() => (step.value / totalSteps) * 100)
+const submissionId = ref('')
 
 const formatDate = (date: Date) => {
   const year = date.getFullYear()
@@ -52,33 +52,15 @@ const stepHeadingIds: Record<number, string> = {
   5: 'step-5-title',
 }
 
-const getValueForValidator = (field: FormFieldKey): string | boolean => {
-  const val = form.value[field]
-  if (Array.isArray(val)) {
-    return val.length > 0 ? 'filled' : ''
-  }
-  if (typeof val === 'boolean') {
-    return val
-  }
-  if (val === null || val === undefined) {
-    return ''
-  }
-  return String(val)
-}
-
 const shouldShowError = (field: FormFieldKey) => Boolean(errors[field])
   && (touched[field] || stepAttempted.value)
 
 const setFieldError = (field: FormFieldKey) => {
   const validator = validators[field]
   if (!validator) return
-  const valToValidate = getValueForValidator(field)
-  const error = validator(valToValidate)
-  if (error) {
-    errors[field] = error
-  } else {
-    delete errors[field]
-  }
+  const error = validator(form.value[field])
+  if (error) errors[field] = error
+  else delete errors[field]
 }
 
 const handleFieldBlur = (field: FormFieldKey) => {
@@ -98,43 +80,65 @@ const handleFieldChange = (field: FormFieldKey) => {
 }
 
 const validateStep = (currentStep: number) => {
-  const requiredFields = requiredFieldsByStep[currentStep] ?? []
   let isValid = true
 
-  requiredFields.forEach((field) => {
+  // Per-field validators
+  const requiredFields = requiredFieldsByStep[currentStep] ?? []
+  for (const field of requiredFields) {
     const validator = validators[field]
-    if (!validator) return // Sécurité
-    const valToValidate = getValueForValidator(field)
-    const error = validator(valToValidate)
+    if (!validator) continue
+    const error = validator(form.value[field])
     if (error) {
       errors[field] = error
       isValid = false
     } else {
       delete errors[field]
     }
-  })
+  }
+
+  // Step-level rules
+  if (currentStep === 2) {
+    const hasSymptoms = form.value.symptoms.length > 0
+    const hasOther = form.value.symptomOther.trim().length > 0
+    if (!hasSymptoms && !hasOther) {
+      errors.symptoms = 'Sélectionnez au moins un symptôme ou décrivez-en un dans « Autre ».'
+      isValid = false
+    } else {
+      delete errors.symptoms
+    }
+  }
+
+  if (currentStep === 3) {
+    let missing = false
+    for (const id of form.value.symptoms) {
+      if (!form.value.symptomTimeline[id]) missing = true
+    }
+    if (missing) {
+      errors.symptomTimeline = 'Indiquez depuis quand pour chaque symptôme.'
+      isValid = false
+    } else {
+      delete errors.symptomTimeline
+    }
+  }
 
   return isValid
 }
 
 const focusField = async (field: FormFieldKey) => {
   await nextTick()
-  const rawId = fieldIds[field] || ''
-  const elementId = String(rawId)
-  if (!elementId || elementId.trim() === '') return 
-  const element = document.getElementById(elementId)
+  const rawId = fieldIds[field] ?? ''
+  if (!rawId) return
+  const element = document.getElementById(rawId)
   if (element instanceof HTMLElement) {
     element.focus()
-    element.scrollIntoView({ block: 'center' })
+    element.scrollIntoView({ block: 'center', behavior: 'smooth' })
   }
 }
 
 const focusFirstInvalidField = async (currentStep: number) => {
   const requiredFields = requiredFieldsByStep[currentStep] ?? []
-  const firstInvalidField = requiredFields.find((field) => Boolean(errors[field]))
-  if (firstInvalidField) {
-    await focusField(firstInvalidField)
-  }
+  const firstInvalid = requiredFields.find((field) => Boolean(errors[field]))
+  if (firstInvalid) await focusField(firstInvalid)
 }
 
 const focusStepHeading = async () => {
@@ -142,19 +146,15 @@ const focusStepHeading = async () => {
   const headingId = stepHeadingIds[step.value]
   if (!headingId) return
   const heading = document.getElementById(headingId)
-  if (heading instanceof HTMLElement) {
-    heading.focus()
-  }
+  if (heading instanceof HTMLElement) heading.focus()
 }
 
 const nextStep = async () => {
   stepAttempted.value = true
-  const isValid = validateStep(step.value)
-  if (!isValid) {
+  if (!validateStep(step.value)) {
     await focusFirstInvalidField(step.value)
     return
   }
-
   stepAttempted.value = false
   step.value = Math.min(step.value + 1, totalSteps)
 }
@@ -164,88 +164,83 @@ const prevStep = () => {
   step.value = Math.max(step.value - 1, 1)
 }
 
-const validateAllSteps = () => {
-  const orderedSteps = Object.keys(requiredFieldsByStep)
-    .map(Number)
-    .sort((a, b) => a - b)
-
-  let firstInvalidStep: number | null = null
-
-  orderedSteps.forEach((stepNumber) => {
-    const isValid = validateStep(stepNumber)
-    if (!isValid && firstInvalidStep === null) {
-      firstInvalidStep = stepNumber
-    }
-  })
-
-  return firstInvalidStep
+const validateAllSteps = (): number | null => {
+  const ordered = Object.keys(requiredFieldsByStep).map(Number).sort((a, b) => a - b)
+  for (const s of ordered) {
+    if (!validateStep(s)) return s
+  }
+  return null
 }
 
 const resetValidationState = () => {
-  for (const field in errors) {
-    delete errors[field as FormFieldKey]
-  }
-  for (const field in touched) {
-    delete touched[field as FormFieldKey]
-  }
+  for (const key in errors) delete errors[key as FormFieldKey]
+  for (const key in touched) delete touched[key as FormFieldKey]
   stepAttempted.value = false
 }
 
 const submitForm = async () => {
   errorMessage.value = ''
-  const invalidStep = validateAllSteps()
-
-  if (invalidStep) {
-    step.value = invalidStep
+  const invalid = validateAllSteps()
+  if (invalid) {
+    step.value = invalid
     stepAttempted.value = true
-    await focusFirstInvalidField(invalidStep)
+    await focusFirstInvalidField(invalid)
     return
   }
 
   isLoading.value = true
-
   try {
     const res = await fetch(`${API_BASE_URL}/diagnosis`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(form.value),
     })
-
     const data = await res.json()
+    if (!res.ok) throw new Error(data.error ?? 'Erreur inconnue')
 
-    if (!res.ok) {
-      throw new Error(data.error || 'Erreur inconnue')
-    }
+    submissionId.value = String(data.id ?? '')
+    if (!submissionId.value) throw new Error('Identifiant de soumission manquant')
 
-    formStore.reset()
-    resetValidationState()
-    const submissionId = String(data.id || '')
-    if (!submissionId) {
-      throw new Error('Identifiant de soumission manquant')
-    }
-    await router.push(`/results/${submissionId}`)
+    // Confirmation state — keep form.value untouched until the user clicks
+    // "Revoir le questionnaire" so the data is still around for the PDF link.
+    step.value = totalSteps + 1
   } catch (error) {
     console.error(error)
-    errorMessage.value = "Une erreur est survenue lors de l'envoi."
+    errorMessage.value = error instanceof Error ? error.message : "Une erreur est survenue lors de l'envoi."
   } finally {
     isLoading.value = false
   }
 }
 
+const restart = () => {
+  formStore.reset()
+  resetValidationState()
+  submissionId.value = ''
+  step.value = 1
+}
+
+const goToResults = () => {
+  if (submissionId.value) router.push(`/results/${submissionId.value}`)
+}
+
+const isConfirmation = computed(() => step.value > totalSteps)
+
 watch(step, async () => {
-  if (!stepAttempted.value) {
-    await focusStepHeading()
-  }
+  if (!stepAttempted.value) await focusStepHeading()
 })
 </script>
 
 <template>
-  <div class="min-h-screen bg-background">
-    <div class="mx-auto max-w-2xl px-4 py-10 sm:px-6">
-      <section class="rounded-2xl border border-border/70 bg-background p-6 shadow-sm">
-        <DiagnosisHeader :step="step" :total-steps="totalSteps" :progress="progress" />
+  <ViewportShell>
+    <div v-if="!isConfirmation" class="flex min-h-screen flex-col">
+      <!-- Sticky top bar -->
+      <div class="sticky top-0 z-10 bg-[var(--color-bg)] px-5 pt-6 pb-4">
+        <DiagnosisHeader :step="step" :total-steps="totalSteps" />
+      </div>
 
-        <form novalidate @submit.prevent="submitForm" class="mt-8 space-y-6">
+      <!-- Form body -->
+      <form novalidate class="flex flex-1 flex-col" @submit.prevent="submitForm">
+        <div class="flex-1 px-5 py-6">
           <DiagnosisStep1
             v-if="step === 1"
             :form="form"
@@ -255,32 +250,33 @@ watch(step, async () => {
             :error-id="errorId"
             @field-blur="handleFieldBlur"
             @field-input="handleFieldInput"
+            @field-change="handleFieldChange"
           />
 
           <DiagnosisStep2 v-if="step === 2" :form="form" />
 
-          <DiagnosisStep3
-            v-if="step === 3"
-            :form="form"
-            :errors="errors"
-            :should-show-error="shouldShowError"
-            :error-id="errorId"
-            @field-change="handleFieldChange"
-          />
+          <DiagnosisStep3 v-if="step === 3" :form="form" />
 
           <DiagnosisStep4 v-if="step === 4" :form="form" />
 
           <DiagnosisStep5 v-if="step === 5" :form="form" />
 
-          <div
-            v-if="step === totalSteps"
-            class="space-y-3 rounded-xl border border-border/70 bg-background/60 p-4"
-          >
-            <p class="text-sm font-medium text-foreground">Consentement</p>
+          <!-- Step-level errors that don't live on a per-field FieldError -->
+          <FieldError
+            v-if="(step === 2 && shouldShowError('symptoms')) || (step === 3 && shouldShowError('symptomTimeline'))"
+            class="mt-4"
+            :errors="[
+              step === 2 ? errors.symptoms : undefined,
+              step === 3 ? errors.symptomTimeline : undefined,
+            ]"
+          />
+
+          <!-- Consent on the final step -->
+          <div v-if="step === totalSteps" class="mt-6">
             <Field :data-invalid="shouldShowError('consent')" class="gap-2">
               <label
                 for="consent-checkbox"
-                class="flex items-start gap-3 rounded-lg border border-border/70 bg-background p-3 transition-colors hover:bg-accent/60 focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2 focus-within:ring-offset-background"
+                class="flex items-start gap-3 rounded-[var(--r-md)] border border-[var(--color-line-2)] bg-[var(--color-surface)] p-3 transition-colors hover:bg-[var(--color-surface-2)] focus-within:ring-[3px] focus-within:ring-ring/45"
               >
                 <input
                   id="consent-checkbox"
@@ -288,14 +284,13 @@ watch(step, async () => {
                   type="checkbox"
                   name="consent"
                   required
-                  class="mt-0.5 h-4 w-4 rounded border-input accent-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+                  class="mt-0.5 size-4 rounded border-[var(--color-line-2)] accent-primary"
                   :aria-invalid="Boolean(errors.consent)"
                   :aria-describedby="shouldShowError('consent') ? errorId('consent') : undefined"
                   @change="handleFieldChange('consent')"
                 />
-                <span class="text-sm text-foreground">
-                  Je consens à la transmission de ces informations au médecin afin de préparer la consultation.
-                  <span class="text-destructive" aria-hidden="true">*</span>
+                <span class="text-sm text-[var(--color-ink-2)]">
+                  Je consens à la transmission de ces informations au pédiatre afin de préparer la consultation.
                 </span>
               </label>
               <FieldError
@@ -305,37 +300,141 @@ watch(step, async () => {
               />
             </Field>
           </div>
+        </div>
 
-          <div class="flex flex-wrap items-center justify-between gap-3 border-t border-border/70 pt-6">
-            <Button v-if="step > 1" type="button" variant="outline" @click="prevStep">
-              Retour
-            </Button>
-            <span v-else aria-hidden="true"></span>
-
-            <Button
-              v-if="step < totalSteps"
-              type="button"
-              class="pg-btn-continue"
-              @click="nextStep"
-            >
-              Continuer
-            </Button>
-
-            <Button
-              v-else
-              type="submit"
-              :disabled="isLoading"
-            >
-              {{ isLoading ? 'Envoi...' : 'Envoyer mes réponses' }}
-            </Button>
-          </div>
-
+        <!-- Footer actions -->
+        <footer class="sticky bottom-0 mt-auto bg-[var(--color-bg)] px-5 py-4 space-y-3">
           <p v-if="errorMessage" class="text-center text-sm text-destructive" role="alert">
             {{ errorMessage }}
           </p>
-        </form>
 
-      </section>
+          <Button
+            v-if="step < totalSteps"
+            block
+            type="button"
+            @click="nextStep"
+          >
+            Continuer
+          </Button>
+          <Button
+            v-else
+            block
+            type="submit"
+            :disabled="isLoading"
+          >
+            {{ isLoading ? 'Envoi...' : 'Envoyer au pédiatre' }}
+          </Button>
+
+          <Button
+            v-if="step > 1"
+            block
+            type="button"
+            variant="ghost"
+            @click="prevStep"
+          >
+            Retour
+          </Button>
+        </footer>
+      </form>
     </div>
-  </div>
+
+    <!-- Confirmation state -->
+    <div v-else class="flex min-h-screen flex-col">
+      <div class="px-5 pt-6">
+        <div class="flex items-center justify-between">
+          <span class="text-xs font-medium text-[var(--color-muted-strong)] uppercase tracking-[0.08em]">
+            Pré-consultation
+          </span>
+        </div>
+      </div>
+
+      <div class="flex-1 px-5 py-8 space-y-7">
+        <div class="flex flex-col items-center text-center space-y-4">
+          <span class="inline-flex size-16 items-center justify-center rounded-full bg-[var(--color-primary-soft)] text-primary">
+            <svg viewBox="0 0 24 24" class="size-8" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M5 12.5l4.5 4.5L19 7" />
+            </svg>
+          </span>
+          <h1 class="font-display text-[28px] leading-[1.15] font-medium tracking-[-0.02em] text-[var(--color-ink)]">
+            C'est transmis. Merci.
+          </h1>
+          <p class="text-[15px] text-[var(--color-ink-2)] max-w-[320px]">
+            Vos réponses ont été envoyées au pédiatre. Il les aura à disposition avant la consultation.
+          </p>
+        </div>
+
+        <!-- What the doctor sees next -->
+        <article class="rounded-[var(--r-lg)] border border-[var(--color-line)] bg-[var(--color-surface)] p-4 flex items-start gap-3">
+          <span aria-hidden="true" class="inline-flex size-9 shrink-0 items-center justify-center rounded-full bg-[var(--color-primary-soft)] text-primary">
+            <svg viewBox="0 0 20 20" class="size-4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M6 3v4M14 3v4M5 7h10v9a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V7Z" />
+            </svg>
+          </span>
+          <div>
+            <p class="text-[14.5px] font-medium text-[var(--color-ink)]">
+              Le pédiatre dispose déjà de toutes vos réponses.
+            </p>
+            <p class="mt-1 text-[13px] text-[var(--color-ink-2)]">
+              Rendez-vous comme prévu — pas besoin de tout réexpliquer.
+            </p>
+          </div>
+        </article>
+
+        <!-- Next steps -->
+        <section class="space-y-3">
+          <h2 class="text-sm font-medium text-[var(--color-ink-2)] uppercase tracking-wide">
+            Et maintenant&nbsp;?
+          </h2>
+          <ol class="space-y-3">
+            <li class="flex items-start gap-3">
+              <span class="inline-flex size-7 shrink-0 items-center justify-center rounded-full bg-[var(--color-primary-soft)] text-primary text-sm font-semibold">1</span>
+              <div>
+                <p class="text-[15px] font-medium text-[var(--color-ink)]">Présentez-vous à l'heure</p>
+                <p class="text-sm text-[var(--color-ink-2)]">Le cabinet ouvre 10 minutes avant le rendez-vous.</p>
+              </div>
+            </li>
+            <li class="flex items-start gap-3">
+              <span class="inline-flex size-7 shrink-0 items-center justify-center rounded-full bg-[var(--color-primary-soft)] text-primary text-sm font-semibold">2</span>
+              <div>
+                <p class="text-[15px] font-medium text-[var(--color-ink)]">Le pédiatre aura déjà vos réponses</p>
+                <p class="text-sm text-[var(--color-ink-2)]">Pas besoin de tout réexpliquer&nbsp;: il sait déjà ce qui vous amène.</p>
+              </div>
+            </li>
+            <li class="flex items-start gap-3">
+              <span class="inline-flex size-7 shrink-0 items-center justify-center rounded-full bg-[var(--color-primary-soft)] text-primary text-sm font-semibold">3</span>
+              <div>
+                <p class="text-[15px] font-medium text-[var(--color-ink)]">En cas d'aggravation</p>
+                <p class="text-sm text-[var(--color-ink-2)]">Appelez le SAMU (15) ou rendez-vous aux urgences pédiatriques.</p>
+              </div>
+            </li>
+          </ol>
+        </section>
+
+        <p class="text-center text-xs text-[var(--color-muted-strong)]">
+          Une copie a été envoyée par email. Vous pouvez fermer cette page.
+        </p>
+      </div>
+
+      <!-- Confirmation footer actions -->
+      <footer class="bg-[var(--color-bg)] px-5 py-4 space-y-3">
+        <Button
+          v-if="submissionId"
+          block
+          type="button"
+          variant="secondary"
+          @click="goToResults"
+        >
+          Voir le récapitulatif PDF
+        </Button>
+        <Button
+          block
+          type="button"
+          variant="ghost"
+          @click="restart"
+        >
+          Revoir le questionnaire depuis le début
+        </Button>
+      </footer>
+    </div>
+  </ViewportShell>
 </template>

@@ -1,102 +1,98 @@
 <script setup lang="ts">
+import { computed } from 'vue'
+import { Chip } from '@/components/ui/chip'
+import { SeveritySlider } from '@/components/ui/severity-slider'
 import type { DiagnosisFormState } from '@/stores/diagnosisForm'
-import type { FormFieldKey } from '@/pages/diagnosis/diagnosisValidation'
-import { FieldError, FieldLegend, FieldSet } from '@/components/ui/field'
-import { durationOptions, worryLevelOptions } from '@/pages/diagnosis/diagnosisOptions'
+import { symptomLabelById, timelineOptions } from './diagnosisOptions'
 
-defineProps<{
+const props = defineProps<{
   form: DiagnosisFormState
-  errors: Partial<Record<FormFieldKey, string>>
-  shouldShowError: (field: FormFieldKey) => boolean
-  errorId: (field: FormFieldKey) => string
 }>()
 
-const emit = defineEmits<{
-  (e: 'field-change', field: FormFieldKey): void
-}>()
+const selectedSymptoms = computed(() => {
+  const ids = props.form.symptoms
+  return ids
+    .map((id) => ({ id, label: symptomLabelById[id] ?? id }))
+    .filter((s) => Boolean(s.label))
+})
+
+const hasOther = computed(() => props.form.symptomOther.trim().length > 0)
+
+const setTimeline = (symptomId: string, timelineId: string) => {
+  if (props.form.symptomTimeline[symptomId] === timelineId) return
+  props.form.symptomTimeline = { ...props.form.symptomTimeline, [symptomId]: timelineId }
+}
+
+const setSeverity = (symptomId: string, value: number) => {
+  if (props.form.symptomSeverity[symptomId] === value) return
+  props.form.symptomSeverity = { ...props.form.symptomSeverity, [symptomId]: value }
+}
+
+const severityFor = (symptomId: string) => props.form.symptomSeverity[symptomId] ?? 0
+const timelineFor = (symptomId: string) => props.form.symptomTimeline[symptomId] ?? ''
 </script>
 
 <template>
-  <section class="space-y-6" aria-labelledby="step-3-title">
-    <div class="space-y-2">
-      <h2 id="step-3-title" tabindex="-1" class="text-h3 font-semibold text-foreground">
-        Depuis quand et ressenti
-      </h2>
-      <p class="text-sm text-muted-foreground">
-        Ces informations sont nécessaires pour préparer la consultation.
+  <section class="space-y-7" aria-labelledby="step-3-title">
+    <header class="space-y-2">
+      <h1 id="step-3-title" tabindex="-1" class="font-display text-[26px] leading-[1.15] font-medium tracking-[-0.02em] text-[var(--color-ink)]">
+        Depuis quand et à quel point ?
+      </h1>
+      <p class="text-[15px] text-[var(--color-ink-2)]">
+        Pour chaque symptôme, indiquez quand il a commencé et son intensité actuelle.
       </p>
+    </header>
+
+    <div
+      v-if="selectedSymptoms.length === 0 && !hasOther"
+      class="rounded-[var(--r-md)] border border-[var(--color-line)] bg-[var(--color-surface-2)] p-4 text-sm text-[var(--color-ink-2)]"
+    >
+      Aucun symptôme sélectionné. Revenez à l'étape précédente pour en cocher au moins un.
     </div>
 
-    <FieldSet
-      :aria-invalid="shouldShowError('duration')"
-      :aria-describedby="shouldShowError('duration') ? errorId('duration') : undefined"
-    >
-      <FieldLegend>
-        Depuis quand ?
-        <span class="text-destructive" aria-hidden="true">*</span>
-        <span class="text-xs text-muted-foreground">(obligatoire)</span>
-      </FieldLegend>
-      <div class="space-y-3">
-        <label
-          v-for="option in durationOptions"
-          :key="option.id"
-          :for="option.id"
-          class="flex items-start gap-3 rounded-lg border border-border/70 bg-background p-3 transition-colors hover:bg-accent/60 focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2 focus-within:ring-offset-background"
-        >
-          <input
-            :id="option.id"
-            v-model="form.duration"
-            type="radio"
-            name="duration"
-            :value="option.label"
-            required
-            class="mt-0.5 h-4 w-4 border-input accent-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
-            @change="emit('field-change', 'duration')"
-          />
-          <span class="text-sm text-foreground">{{ option.label }}</span>
-        </label>
-      </div>
-      <FieldError
-        v-if="shouldShowError('duration')"
-        :id="errorId('duration')"
-        :errors="[errors.duration]"
-      />
-    </FieldSet>
+    <div v-else class="space-y-5">
+      <article
+        v-for="symptom in selectedSymptoms"
+        :key="symptom.id"
+        class="rounded-[var(--r-lg)] border border-[var(--color-line)] bg-[var(--color-surface)] p-5 space-y-5"
+      >
+        <header class="flex items-baseline justify-between">
+          <h2 class="font-display text-lg font-medium tracking-[-0.01em] text-[var(--color-ink)]">
+            {{ symptom.label }}
+          </h2>
+        </header>
 
-    <FieldSet
-      :aria-invalid="shouldShowError('worryLevel')"
-      :aria-describedby="shouldShowError('worryLevel') ? errorId('worryLevel') : undefined"
-    >
-      <FieldLegend>
-        Niveau d'inquiétude
-        <span class="text-destructive" aria-hidden="true">*</span>
-        <span class="text-xs text-muted-foreground">(obligatoire)</span>
-      </FieldLegend>
-      <div class="space-y-3">
-        <label
-          v-for="option in worryLevelOptions"
-          :key="option.id"
-          :for="option.id"
-          class="flex items-start gap-3 rounded-lg border border-border/70 bg-background p-3 transition-colors hover:bg-accent/60 focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2 focus-within:ring-offset-background"
-        >
-          <input
-            :id="option.id"
-            v-model="form.worryLevel"
-            type="radio"
-            name="worryLevel"
-            :value="option.label"
-            required
-            class="mt-0.5 h-4 w-4 border-input accent-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
-            @change="emit('field-change', 'worryLevel')"
-          />
-          <span class="text-sm text-foreground">{{ option.label }}</span>
-        </label>
+        <!-- Timeline chips -->
+        <div class="space-y-2">
+          <p class="text-sm font-medium text-[var(--color-ink-2)]">Depuis quand&nbsp;?</p>
+          <div role="radiogroup" :aria-label="`Depuis quand pour ${symptom.label}`" class="flex flex-wrap gap-2">
+            <Chip
+              v-for="option in timelineOptions"
+              :key="option.id"
+              :model-value="timelineFor(symptom.id) === option.id"
+              role="radio"
+              @update:model-value="() => setTimeline(symptom.id, option.id)"
+            >
+              {{ option.label }}
+            </Chip>
+          </div>
+        </div>
+
+        <!-- Severity slider -->
+        <SeveritySlider
+          :model-value="severityFor(symptom.id)"
+          :label="`Intensité actuelle (${symptom.label})`"
+          @update:model-value="(v) => setSeverity(symptom.id, v)"
+        />
+      </article>
+
+      <div
+        v-if="hasOther"
+        class="rounded-[var(--r-lg)] border border-dashed border-[var(--color-line-2)] bg-[var(--color-surface-2)] p-4 text-sm text-[var(--color-ink-2)]"
+      >
+        Vous avez ajouté un autre symptôme&nbsp;: «&nbsp;{{ form.symptomOther }}&nbsp;».
+        Vous pourrez en parler plus en détail lors de la consultation.
       </div>
-      <FieldError
-        v-if="shouldShowError('worryLevel')"
-        :id="errorId('worryLevel')"
-        :errors="[errors.worryLevel]"
-      />
-    </FieldSet>
+    </div>
   </section>
 </template>

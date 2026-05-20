@@ -59,15 +59,15 @@ watch(
           <RouterLink to="/">Accueil</RouterLink>
         </NavigationMenuLink>
       </NavigationMenuItem>
-      <NavigationMenuItem>
-        <NavigationMenuLink as-child>
-          <RouterLink to="/diagnosis">Diagnostic</RouterLink>
-        </NavigationMenuLink>
-      </NavigationMenuItem>
       <template v-if="isDoctorAuthenticated">
         <NavigationMenuItem>
           <NavigationMenuLink as-child>
             <RouterLink to="/dashboard">Tableau de bord</RouterLink>
+          </NavigationMenuLink>
+        </NavigationMenuItem>
+        <NavigationMenuItem>
+          <NavigationMenuLink as-child>
+            <RouterLink to="/dashboard/formulaires">Mes formulaires</RouterLink>
           </NavigationMenuLink>
         </NavigationMenuItem>
         <NavigationMenuItem>

@@ -1,10 +1,11 @@
 import { Router, Response } from 'express';
 import { eq, and } from 'drizzle-orm';
 import { randomUUID } from 'crypto';
-import { Resend } from 'resend';
 import { db } from '../db';
-import { patientSessions, diagnosis, doctors } from '../db/schema';
+import { patientSessions, diagnosis, doctors, formTemplates, children, DEFAULT_QUESTIONS } from '../db/schema';
 import { authenticateToken, type AuthRequest } from '../middleware/auth.middleware';
+import { sendFormLinkEmail } from '../lib/email';
+import { computeTriageScore } from '../services/triage.service';
 
 export const sessionsRouter = Router();
 
@@ -14,7 +15,25 @@ sessionsRouter.post('/', authenticateToken, async (req: AuthRequest, res: Respon
     const doctorId = req.user?.id;
     if (!doctorId) return res.status(401).json({ error: 'Non authentifié' });
 
-    const { patientEmail, patientFirstName } = req.body;
+    const { patientEmail, patientFirstName, formTemplateId, appointmentAt } = req.body;
+
+    let appointmentDate: Date | null = null;
+    if (appointmentAt) {
+      const parsed = new Date(appointmentAt);
+      if (isNaN(parsed.getTime())) {
+        return res.status(400).json({ error: 'Date de rendez-vous invalide' });
+      }
+      if (parsed.getTime() <= Date.now()) {
+        return res.status(400).json({ error: 'La date de rendez-vous doit être dans le futur' });
+      }
+      appointmentDate = parsed;
+    }
+
+    if (patientEmail && !appointmentDate) {
+      return res.status(400).json({
+        error: 'La date de rendez-vous est obligatoire dès qu\'un email patient est renseigné (sinon les relances ne peuvent pas être envoyées).',
+      });
+    }
 
     const token = randomUUID();
     const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 jours
@@ -24,7 +43,9 @@ sessionsRouter.post('/', authenticateToken, async (req: AuthRequest, res: Respon
       patientToken: token,
       patientEmail: patientEmail || null,
       patientFirstName: patientFirstName || null,
+      formTemplateId: formTemplateId || null,
       expiresAt,
+      appointmentAt: appointmentDate,
     }).returning();
 
     const baseUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
@@ -62,12 +83,13 @@ sessionsRouter.get('/', authenticateToken, async (req: AuthRequest, res: Respons
 // GET /api/sessions/:token — infos session pour le patient (public)
 sessionsRouter.get('/:token', async (req, res: Response): Promise<any> => {
   try {
-    const { token } = req.params;
+    const token = String(req.params.token || '');
     const [session] = await db.select({
       id: patientSessions.id,
       status: patientSessions.status,
       expiresAt: patientSessions.expiresAt,
       patientFirstName: patientSessions.patientFirstName,
+      formTemplateId: patientSessions.formTemplateId,
     }).from(patientSessions).where(eq(patientSessions.patientToken, token)).limit(1);
 
     if (!session) return res.status(404).json({ error: 'Lien introuvable' });
@@ -78,7 +100,15 @@ sessionsRouter.get('/:token', async (req, res: Response): Promise<any> => {
       return res.status(409).json({ error: 'Ce formulaire a déjà été rempli' });
     }
 
-    res.json(session);
+    // Charger les questions du template si associé
+    let questions = DEFAULT_QUESTIONS;
+    if (session.formTemplateId) {
+      const [template] = await db.select({ questions: formTemplates.questions })
+        .from(formTemplates).where(eq(formTemplates.id, session.formTemplateId)).limit(1);
+      if (template) questions = template.questions;
+    }
+
+    res.json({ ...session, questions });
   } catch (error: any) {
     res.status(500).json({ error: 'Erreur serveur' });
   }
@@ -87,7 +117,7 @@ sessionsRouter.get('/:token', async (req, res: Response): Promise<any> => {
 // POST /api/sessions/:token/respond — soumission du formulaire patient (public)
 sessionsRouter.post('/:token/respond', async (req, res: Response): Promise<any> => {
   try {
-    const { token } = req.params;
+    const token = String(req.params.token || '');
     const [session] = await db.select().from(patientSessions)
       .where(eq(patientSessions.patientToken, token)).limit(1);
 
@@ -96,6 +126,44 @@ sessionsRouter.post('/:token/respond', async (req, res: Response): Promise<any> 
     if (session.status === 'completed') return res.status(409).json({ error: 'Déjà soumis' });
 
     const data = req.body;
+    const isCustom = !!session.formTemplateId;
+    const nir: string | null = data.nir?.trim() || null;
+
+    // Matching NIR : cherche ou crée le dossier enfant
+    let childId: string | null = null;
+    if (nir) {
+      const firstName = (data.childFirstName || data.answers?.q1 || '').trim();
+      const lastName = (data.childLastName || data.answers?.q2 || '').trim();
+      const birthDate = (data.childBirthDate || data.answers?.q3 || '').trim();
+
+      const [existing] = await db.select({ id: children.id })
+        .from(children)
+        .where(and(eq(children.nir, nir), eq(children.doctorId, session.doctorId)))
+        .limit(1);
+
+      if (existing) {
+        childId = existing.id;
+      } else if (firstName && lastName && birthDate) {
+        const [created] = await db.insert(children).values({
+          doctorId: session.doctorId,
+          nir,
+          firstName,
+          lastName,
+          birthDate,
+        }).returning({ id: children.id });
+        childId = created.id;
+      }
+    }
+
+    const childBirthDate = data.childBirthDate || data.answers?.q3 || 'N/A';
+    const triage = computeTriageScore({
+      clinicalSigns: (data.clinicalSigns || []) as string[],
+      behaviorChanges: (data.behaviorChanges || []) as string[],
+      worryLevel: data.worryLevel || '',
+      duration: data.duration || '',
+      childBirthDate,
+    });
+
     const [record] = await db.insert(diagnosis).values({
       // childFirstName: data.childFirstName,
       // childLastName: data.childLastName,
@@ -109,6 +177,12 @@ sessionsRouter.post('/:token/respond', async (req, res: Response): Promise<any> 
       // additionalNotes: data.additionalNotes || '',
       doctorId: session.doctorId,
       sessionId: session.id,
+      formTemplateId: session.formTemplateId || null,
+      customAnswers: isCustom ? (data.answers || {}) : null,
+      childId,
+      nir,
+      triageLevel: triage.level,
+      triageScore: String(triage.score),
     }).returning({ id: diagnosis.id });
 
     await db.update(patientSessions)
@@ -126,7 +200,7 @@ sessionsRouter.post('/:token/respond', async (req, res: Response): Promise<any> 
 sessionsRouter.post('/:id/send-email', authenticateToken, async (req: AuthRequest, res: Response): Promise<any> => {
   try {
     const doctorId = req.user?.id;
-    const { id } = req.params;
+    const id = String(req.params.id || '');
 
     const [session] = await db.select().from(patientSessions)
       .where(and(eq(patientSessions.id, id), eq(patientSessions.doctorId, doctorId!))).limit(1);
@@ -134,34 +208,13 @@ sessionsRouter.post('/:id/send-email', authenticateToken, async (req: AuthReques
     if (!session) return res.status(404).json({ error: 'Session introuvable' });
     if (!session.patientEmail) return res.status(400).json({ error: 'Pas d\'email patient configuré' });
 
-    const [doctor] = await db.select({ email: doctors.email, rpps: doctors.rpps })
-      .from(doctors).where(eq(doctors.id, doctorId!)).limit(1);
-
-    const apiKey = process.env.RESEND_API_KEY;
-    if (!apiKey) return res.status(500).json({ error: 'RESEND_API_KEY non configurée' });
-
-    const resend = new Resend(apiKey);
     const baseUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
     const formUrl = `${baseUrl}/form/${session.patientToken}`;
 
-    await resend.emails.send({
-      from: 'PédiGuide <onboarding@resend.dev>',
+    await sendFormLinkEmail({
       to: session.patientEmail,
-      subject: 'Préparez votre consultation — PédiGuide',
-      html: `
-        <div style="font-family: sans-serif; max-width: 560px; margin: 0 auto; padding: 24px;">
-          <h2 style="color: #182245;">Préparez votre consultation</h2>
-          <p>Bonjour${session.patientFirstName ? ` ${session.patientFirstName}` : ''},</p>
-          <p>Votre médecin vous invite à remplir un questionnaire de pré-consultation avant votre rendez-vous.</p>
-          <p>Cela prend <strong>environ 3 minutes</strong> et permet au médecin de mieux préparer votre consultation.</p>
-          <div style="text-align: center; margin: 32px 0;">
-            <a href="${formUrl}" style="background: #4A9B8E; color: white; padding: 14px 28px; border-radius: 8px; text-decoration: none; font-weight: bold;">
-              Remplir le questionnaire
-            </a>
-          </div>
-          <p style="color: #6B7280; font-size: 12px;">Ce lien est valable 7 jours. Si vous ne vous attendiez pas à recevoir cet email, vous pouvez l'ignorer.</p>
-        </div>
-      `,
+      patientFirstName: session.patientFirstName,
+      formUrl,
     });
 
     res.json({ success: true });

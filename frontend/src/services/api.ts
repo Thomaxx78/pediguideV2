@@ -86,7 +86,6 @@ async function apiFetch<T = unknown>(
     }
 
     const data = await response.json();
-    console.log(data)
 
     if (!response.ok) {
       // Extract error message from response
@@ -163,6 +162,9 @@ export const api = {
     synthesize: async (id: string) => {
       return apiFetch(`/diagnosis/${id}/synthesize`, { method: 'POST' });
     },
+    activateSynthesisVersion: async (id: string, versionId: string) => {
+      return apiFetch(`/diagnosis/${id}/synthesis-versions/${versionId}/activate`, { method: 'POST' });
+    },
   },
 
   /**
@@ -173,6 +175,18 @@ export const api = {
       return apiFetch('/kyc/start', {
         method: 'POST',
       });
+    },
+  },
+
+  /**
+   * Children (dossiers patients) endpoints
+   */
+  children: {
+    list: async <T = unknown>() => {
+      return apiFetch<T>('/children');
+    },
+    get: async <T = unknown>(id: string) => {
+      return apiFetch<T>(`/children/${id}`);
     },
   },
 };
