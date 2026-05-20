@@ -97,16 +97,16 @@ sessionsRouter.post('/:token/respond', async (req, res: Response): Promise<any> 
 
     const data = req.body;
     const [record] = await db.insert(diagnosis).values({
-      childFirstName: data.childFirstName,
-      childLastName: data.childLastName,
-      childBirthDate: data.childBirthDate,
-      consultationReason: data.consultationReason,
-      behaviorChanges: (data.behaviorChanges || []) as string[],
-      clinicalSigns: (data.clinicalSigns || []) as string[],
-      duration: data.duration,
-      worryLevel: data.worryLevel,
-      actionsTaken: (data.actionsTaken || []) as string[],
-      additionalNotes: data.additionalNotes || '',
+      // childFirstName: data.childFirstName,
+      // childLastName: data.childLastName,
+      // childBirthDate: data.childBirthDate,
+      // consultationReason: data.consultationReason,
+      // behaviorChanges: (data.behaviorChanges || []) as string[],
+      // clinicalSigns: (data.clinicalSigns || []) as string[],
+      // duration: data.duration,
+      // worryLevel: data.worryLevel,
+      // actionsTaken: (data.actionsTaken || []) as string[],
+      // additionalNotes: data.additionalNotes || '',
       doctorId: session.doctorId,
       sessionId: session.id,
     }).returning({ id: diagnosis.id });

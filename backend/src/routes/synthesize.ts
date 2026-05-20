@@ -59,13 +59,13 @@ synthesizeRouter.post('/:id/synthesize', authenticateToken, async (req: AuthRequ
     const client = new Groq({ apiKey });
 
     const responseData = {
-      motif_consultation: record.consultationReason,
-      changements_comportement: record.behaviorChanges ?? [],
-      signes_cliniques: record.clinicalSigns ?? [],
-      duree_symptomes: record.duration,
-      niveau_inquietude_parent: record.worryLevel,
-      actions_deja_prises: record.actionsTaken ?? [],
-      notes_complementaires: record.additionalNotes ?? '',
+      // motif_consultation: record.consultationReason,
+      // changements_comportement: record.behaviorChanges ?? [],
+      // signes_cliniques: record.clinicalSigns ?? [],
+      // duree_symptomes: record.duration,
+      // niveau_inquietude_parent: record.worryLevel,
+      // actions_deja_prises: record.actionsTaken ?? [],
+      // notes_complementaires: record.additionalNotes ?? '',
     };
 
     const completion = await client.chat.completions.create({

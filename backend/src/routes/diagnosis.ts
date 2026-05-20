@@ -40,19 +40,19 @@ diagnosisRouter.post('/', async (req: Request, res: Response) => {
     const data = req.body;
     
     const result = await db.insert(diagnosis).values({
-      childFirstName: data.childFirstName,
-      childLastName: data.childLastName,
-      childBirthDate: data.childBirthDate,
-      consultationReason: data.consultationReason,
+      // childFirstName: data.childFirstName,
+      // childLastName: data.childLastName,
+      // childBirthDate: data.childBirthDate,
+      // consultationReason: data.consultationReason,
       
-      behaviorChanges: (data.behaviorChanges || []) as string[],
-      clinicalSigns: (data.clinicalSigns || []) as string[],
+      // behaviorChanges: (data.behaviorChanges || []) as string[],
+      // clinicalSigns: (data.clinicalSigns || []) as string[],
       
-      duration: data.duration,
-      worryLevel: data.worryLevel,
+      // duration: data.duration,
+      // worryLevel: data.worryLevel,
       
-      actionsTaken: (data.actionsTaken || []) as string[],
-      additionalNotes: data.additionalNotes || ""
+      // actionsTaken: (data.actionsTaken || []) as string[],
+      // additionalNotes: data.additionalNotes || ""
     }).returning({ id: diagnosis.id });
 
     res.json({ success: true, id: result[0].id });
@@ -154,24 +154,24 @@ diagnosisRouter.get('/:id/pdf', async (req: Request, res: Response) => {
     doc.moveDown(0.6);
 
     addSectionTitle('Informations patient');
-    addKeyValue('Prénom :', formatTextValue(record.childFirstName));
-    addKeyValue('Nom :', formatTextValue(record.childLastName));
-    addKeyValue('Date de naissance :', formatTextValue(record.childBirthDate));
-    addKeyValue('Motif de consultation :', formatTextValue(record.consultationReason));
+    // addKeyValue('Prénom :', formatTextValue(record.childFirstName));
+    // addKeyValue('Nom :', formatTextValue(record.childLastName));
+    // addKeyValue('Date de naissance :', formatTextValue(record.childBirthDate));
+    // addKeyValue('Motif de consultation :', formatTextValue(record.consultationReason));
     drawSectionSeparator(doc, separatorGray, pageLeft, pageRight);
     doc.moveDown(0.6);
 
     addSectionTitle('Observations');
-    addBulletList('Changements de comportement :', normalizeList(record.behaviorChanges as string[] | null));
-    addBulletList('Signes cliniques :', normalizeList(record.clinicalSigns as string[] | null));
-    addKeyValue('Durée des symptômes :', formatTextValue(record.duration));
-    addKeyValue("Niveau d'inquiétude :", formatTextValue(record.worryLevel));
+    // addBulletList('Changements de comportement :', normalizeList(record.behaviorChanges as string[] | null));
+    // addBulletList('Signes cliniques :', normalizeList(record.clinicalSigns as string[] | null));
+    // addKeyValue('Durée des symptômes :', formatTextValue(record.duration));
+    // addKeyValue("Niveau d'inquiétude :", formatTextValue(record.worryLevel));
     drawSectionSeparator(doc, separatorGray, pageLeft, pageRight);
     doc.moveDown(0.6);
 
     addSectionTitle('Actions et notes');
-    addBulletList('Actions entreprises :', normalizeList(record.actionsTaken as string[] | null));
-    addKeyValue('Message complémentaire :', formatTextValue(record.additionalNotes));
+    // addBulletList('Actions entreprises :', normalizeList(record.actionsTaken as string[] | null));
+    // addKeyValue('Message complémentaire :', formatTextValue(record.additionalNotes));
 
     const footerNote = 'Ce document est généré automatiquement à partir du questionnaire de pré-consultation et ne remplace pas un avis médical.';
     const range = doc.bufferedPageRange();
