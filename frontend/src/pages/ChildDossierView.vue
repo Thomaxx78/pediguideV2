@@ -27,6 +27,12 @@ interface Consultation {
   behaviorChanges: string[] | null
   aiSynthesis: AiSynthesis | null
   status: string
+  triageLevel: 'rouge' | 'orange' | 'jaune' | 'vert' | null
+}
+
+interface RecurringSymptom {
+  symptom: string
+  count: number
 }
 
 interface ChildDossier {
@@ -39,6 +45,7 @@ interface ChildDossier {
   consultationCount: number
   trend: 'aggravation' | 'amelioration' | 'stable' | null
   consultations: Consultation[]
+  recurringSymptoms: RecurringSymptom[]
 }
 
 const dossier = ref<ChildDossier | null>(null)
@@ -70,6 +77,13 @@ const priorityLabel: Record<AiSynthesis['niveau_priorite'], string> = {
   non_urgent: 'Non urgent',
   a_surveiller: 'À surveiller',
   urgent: 'Urgent',
+}
+
+const triageBadge: Record<string, { label: string }> = {
+  rouge: { label: 'Rouge' },
+  orange: { label: 'Orange' },
+  jaune: { label: 'Jaune' },
+  vert: { label: 'Vert' },
 }
 
 const trendConfig: Record<'aggravation' | 'amelioration' | 'stable', { label: string; tone: string; icon: string }> = {
@@ -174,6 +188,26 @@ onMounted(async () => {
         </p>
       </header>
 
+      <!-- Symptômes récurrents -->
+      <div
+        v-if="dossier.recurringSymptoms?.length"
+        class="rounded-[var(--r-lg)] border border-[var(--color-line)] bg-[var(--color-surface)] p-5"
+      >
+        <p class="mb-3 text-[11px] font-medium uppercase tracking-[0.08em] text-[var(--color-muted-strong)]">
+          Symptômes récurrents
+        </p>
+        <div class="flex flex-wrap gap-2">
+          <span
+            v-for="item in dossier.recurringSymptoms"
+            :key="item.symptom"
+            class="inline-flex items-center gap-1.5 rounded-full border border-[color-mix(in_oklab,var(--color-sev-3)_30%,transparent)] bg-[color-mix(in_oklab,var(--color-sev-3)_10%,var(--color-bg))] px-2.5 py-1 text-[11.5px] font-medium text-[var(--color-sev-3)]"
+          >
+            {{ item.symptom }}
+            <span class="text-[11px] opacity-70">{{ item.count }}×</span>
+          </span>
+        </div>
+      </div>
+
       <!-- Timeline -->
       <section>
         <h2 class="mb-4 text-[11px] font-medium uppercase tracking-[0.08em] text-[var(--color-muted-strong)]">
@@ -202,6 +236,18 @@ onMounted(async () => {
                   </p>
                 </div>
                 <div class="flex shrink-0 flex-col items-end gap-1.5">
+                  <span
+                    v-if="consult.triageLevel"
+                    class="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-[11.5px] font-medium"
+                    :class="{
+                      'border-red-200 bg-red-50 text-red-700': consult.triageLevel === 'rouge',
+                      'border-orange-200 bg-orange-50 text-orange-700': consult.triageLevel === 'orange',
+                      'border-yellow-200 bg-yellow-50 text-yellow-700': consult.triageLevel === 'jaune',
+                      'border-emerald-200 bg-emerald-50 text-emerald-700': consult.triageLevel === 'vert',
+                    }"
+                  >
+                    {{ triageBadge[consult.triageLevel]?.label }}
+                  </span>
                   <span
                     v-if="consult.aiSynthesis"
                     :class="['inline-flex items-center rounded-full border px-2.5 py-0.5 text-[11.5px] font-medium', priorityToneClasses[consult.aiSynthesis.niveau_priorite]]"

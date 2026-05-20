@@ -5,6 +5,7 @@ import { db } from '../db';
 import { patientSessions, diagnosis, doctors, formTemplates, children, DEFAULT_QUESTIONS } from '../db/schema';
 import { authenticateToken, type AuthRequest } from '../middleware/auth.middleware';
 import { sendFormLinkEmail } from '../lib/email';
+import { computeTriageScore } from '../services/triage.service';
 
 export const sessionsRouter = Router();
 
@@ -154,10 +155,19 @@ sessionsRouter.post('/:token/respond', async (req, res: Response): Promise<any> 
       }
     }
 
+    const childBirthDate = data.childBirthDate || data.answers?.q3 || 'N/A';
+    const triage = computeTriageScore({
+      clinicalSigns: (data.clinicalSigns || []) as string[],
+      behaviorChanges: (data.behaviorChanges || []) as string[],
+      worryLevel: data.worryLevel || '',
+      duration: data.duration || '',
+      childBirthDate,
+    });
+
     const [record] = await db.insert(diagnosis).values({
       childFirstName: data.childFirstName || data.answers?.q1 || 'N/A',
       childLastName: data.childLastName || data.answers?.q2 || 'N/A',
-      childBirthDate: data.childBirthDate || data.answers?.q3 || 'N/A',
+      childBirthDate,
       consultationReason: data.consultationReason || data.answers?.q4 || 'N/A',
       behaviorChanges: (data.behaviorChanges || []) as string[],
       clinicalSigns: (data.clinicalSigns || []) as string[],
@@ -171,6 +181,8 @@ sessionsRouter.post('/:token/respond', async (req, res: Response): Promise<any> 
       customAnswers: isCustom ? (data.answers || {}) : null,
       childId,
       nir,
+      triageLevel: triage.level,
+      triageScore: String(triage.score),
     }).returning({ id: diagnosis.id });
 
     await db.update(patientSessions)

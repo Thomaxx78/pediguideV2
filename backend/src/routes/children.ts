@@ -65,6 +65,7 @@ childrenRouter.get('/:id', authenticateToken, async (req: AuthRequest, res: Resp
       additionalNotes: diagnosis.additionalNotes,
       aiSynthesis: diagnosis.aiSynthesis,
       status: diagnosis.status,
+      triageLevel: diagnosis.triageLevel,
     }).from(diagnosis)
       .where(eq(diagnosis.childId, child.id))
       .orderBy(desc(diagnosis.createdAt));
@@ -90,7 +91,21 @@ childrenRouter.get('/:id', authenticateToken, async (req: AuthRequest, res: Resp
       else trend = 'stable';
     }
 
-    res.json({ ...child, consultations, trend, consultationCount: consultations.length });
+    // Analyse des symptômes récurrents (présents dans ≥ 2 consultations)
+    const signCount: Record<string, number> = {};
+    for (const c of consultations) {
+      const signs = (c.clinicalSigns as string[] | null) ?? [];
+      const behaviors = (c.behaviorChanges as string[] | null) ?? [];
+      for (const s of [...signs, ...behaviors]) {
+        signCount[s] = (signCount[s] ?? 0) + 1;
+      }
+    }
+    const recurringSymptoms = Object.entries(signCount)
+      .filter(([, count]) => count >= 2)
+      .sort((a, b) => b[1] - a[1])
+      .map(([symptom, count]) => ({ symptom, count }));
+
+    res.json({ ...child, consultations, trend, consultationCount: consultations.length, recurringSymptoms });
   } catch (error: any) {
     console.error('❌ [Children] Erreur dossier:', error);
     res.status(500).json({ error: 'Erreur serveur' });

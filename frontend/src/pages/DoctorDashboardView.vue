@@ -79,6 +79,16 @@ onMounted(() => {
       <CreateSessionModal @created="loadForms" />
     </header>
 
+    <!-- Nav -->
+    <div class="flex gap-3">
+      <button
+        class="inline-flex items-center gap-2 rounded-[var(--r-md)] border border-[var(--color-line)] bg-[var(--color-surface)] px-4 py-2 text-sm font-medium text-[var(--color-ink)] transition-colors hover:bg-[var(--color-surface-2)]"
+        @click="router.push('/dashboard/patients')"
+      >
+        Dossiers patients
+      </button>
+    </div>
+
     <!-- Search -->
     <div class="w-full md:max-w-md">
       <label for="doctor-search" class="sr-only">Rechercher un formulaire</label>
