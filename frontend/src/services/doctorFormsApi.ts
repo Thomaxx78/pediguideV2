@@ -12,6 +12,17 @@ export interface AiSynthesis {
   disclaimer: string
 }
 
+export interface AiSynthesisVersion {
+  id: string
+  diagnosisId: string
+  version: number
+  synthesis: AiSynthesis
+  model: string
+  promptVersion: string
+  generatedByDoctorId?: string | null
+  createdAt: string
+}
+
 /**
  * Raw row shape returned by the backend. Pediguide had a legacy parent-flow
  * schema (childLastName, consultationReason, behaviorChanges, clinicalSigns,
@@ -56,6 +67,7 @@ export interface DiagnosisRecord {
 
   status?: string | null
   aiSynthesis?: AiSynthesis | null
+  aiSynthesisVersions?: AiSynthesisVersion[]
 }
 
 export interface DoctorFormSummary {
@@ -98,6 +110,7 @@ export interface DoctorFormDetail extends DoctorFormSummary {
   photoName: string
 
   aiSynthesis: AiSynthesis | null
+  aiSynthesisVersions: AiSynthesisVersion[]
   /**
    * True if this record was submitted via the legacy parent flow (no new
    * fields populated). Used to choose which render path the detail page uses.
@@ -171,6 +184,7 @@ const toDetail = (record: DiagnosisRecord): DoctorFormDetail => ({
   photoName: record.photoName ?? '',
 
   aiSynthesis: record.aiSynthesis ?? null,
+  aiSynthesisVersions: record.aiSynthesisVersions ?? [],
   isLegacy: isLegacyRecord(record),
 })
 

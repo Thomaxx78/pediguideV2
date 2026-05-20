@@ -3,8 +3,14 @@ import { computed, onMounted, ref, watch } from 'vue'
 import { RouterLink, useRoute } from 'vue-router'
 import { Button } from '@/components/ui/button'
 import AiSynthesisPanel from '@/components/doctor/AiSynthesisPanel.vue'
-import { doctorFormsApi, type DoctorFormDetail } from '@/services/doctorFormsApi'
+import {
+  doctorFormsApi,
+  type AiSynthesis,
+  type AiSynthesisVersion,
+  type DoctorFormDetail,
+} from '@/services/doctorFormsApi'
 import api from '@/services/api'
+import { downloadDiagnosisPdf } from '@/services/pdfDownload'
 import {
   allergyLabelById,
   antecedentLabelById,
@@ -25,6 +31,13 @@ const error = ref<string | null>(null)
 
 const isSynthesizing = ref(false)
 const synthesisError = ref<string | null>(null)
+const activeVersionId = ref<string | null>(null)
+const previewedVersion = ref<AiSynthesisVersion | null>(null)
+const showAllVersions = ref(false)
+const isActivatingVersion = ref(false)
+const versionActionError = ref<string | null>(null)
+const isDownloadingPdf = ref(false)
+const pdfError = ref<string | null>(null)
 
 const formatDate = (value: string) => {
   if (!value) return ''
@@ -43,6 +56,21 @@ const formatBirthDate = (value: string) => {
   return new Intl.DateTimeFormat('fr-FR', { dateStyle: 'long' }).format(date)
 }
 
+const findVersionIdForSynthesis = (target: AiSynthesis) => {
+  if (!form.value) return null
+  const targetJson = JSON.stringify(target)
+  return form.value.aiSynthesisVersions.find((version) => JSON.stringify(version.synthesis) === targetJson)?.id ?? null
+}
+
+const displayedSynthesis = computed(() => previewedVersion.value?.synthesis ?? form.value?.aiSynthesis ?? null)
+
+const visibleSynthesisVersions = computed(() => {
+  const versions = form.value?.aiSynthesisVersions ?? []
+  return showAllVersions.value ? versions : versions.slice(0, 3)
+})
+
+const hiddenVersionCount = computed(() => Math.max((form.value?.aiSynthesisVersions.length ?? 0) - 3, 0))
+
 const loadForm = async () => {
   if (!formId.value) {
     error.value = 'Identifiant de formulaire manquant.'
@@ -55,6 +83,9 @@ const loadForm = async () => {
 
   try {
     form.value = await doctorFormsApi.get(formId.value)
+    if (form.value.aiSynthesis) {
+      activeVersionId.value = findVersionIdForSynthesis(form.value.aiSynthesis)
+    }
   } catch (err: unknown) {
     error.value = (err as Error).message || 'Impossible de charger le formulaire.'
     form.value = null
@@ -67,14 +98,70 @@ const generateSynthesis = async () => {
   if (!formId.value || !form.value) return
   isSynthesizing.value = true
   synthesisError.value = null
+  versionActionError.value = null
 
   try {
-    const result = await api.diagnosis.synthesize(formId.value) as { synthesis: DoctorFormDetail['aiSynthesis'] }
-    if (form.value) form.value.aiSynthesis = result.synthesis ?? null
+    const result = await api.diagnosis.synthesize(formId.value) as {
+      synthesis: DoctorFormDetail['aiSynthesis']
+      version?: AiSynthesisVersion
+    }
+    if (form.value) {
+      form.value.aiSynthesis = result.synthesis ?? null
+      if (result.version) {
+        form.value.aiSynthesisVersions = [result.version, ...form.value.aiSynthesisVersions]
+        activeVersionId.value = result.version.id
+        previewedVersion.value = null
+        showAllVersions.value = false
+      }
+    }
   } catch (err: unknown) {
     synthesisError.value = (err as Error).message || 'Erreur lors de la génération.'
   } finally {
     isSynthesizing.value = false
+  }
+}
+
+const previewVersion = (version: AiSynthesisVersion) => {
+  previewedVersion.value = version
+  versionActionError.value = null
+}
+
+const clearVersionPreview = () => {
+  previewedVersion.value = null
+  versionActionError.value = null
+}
+
+const activateVersion = async (version: AiSynthesisVersion) => {
+  if (!formId.value || !form.value || version.id === activeVersionId.value) return
+  isActivatingVersion.value = true
+  versionActionError.value = null
+
+  try {
+    const result = await api.diagnosis.activateSynthesisVersion(formId.value, version.id) as {
+      synthesis: AiSynthesis
+      version: AiSynthesisVersion
+    }
+    form.value.aiSynthesis = result.synthesis
+    activeVersionId.value = result.version.id
+    previewedVersion.value = null
+  } catch (err: unknown) {
+    versionActionError.value = (err as Error).message || 'Impossible d’activer cette version.'
+  } finally {
+    isActivatingVersion.value = false
+  }
+}
+
+const downloadPdf = async () => {
+  if (!formId.value) return
+  isDownloadingPdf.value = true
+  pdfError.value = null
+
+  try {
+    await downloadDiagnosisPdf(formId.value)
+  } catch (err: unknown) {
+    pdfError.value = err instanceof Error ? err.message : 'Impossible de télécharger le PDF.'
+  } finally {
+    isDownloadingPdf.value = false
   }
 }
 
@@ -83,6 +170,9 @@ onMounted(() => {
 })
 
 watch(formId, () => {
+  activeVersionId.value = null
+  previewedVersion.value = null
+  showAllVersions.value = false
   loadForm()
 })
 
@@ -155,10 +245,21 @@ const vaccinationsDisplay = computed(() => {
           </span>
         </p>
       </div>
-      <Button as-child variant="secondary" size="sm">
-        <RouterLink to="/dashboard">Retour au tableau de bord</RouterLink>
-      </Button>
+      <div class="flex flex-wrap items-center gap-2">
+        <Button
+          variant="secondary"
+          size="sm"
+          :disabled="isDownloadingPdf || !formId"
+          @click="downloadPdf"
+        >
+          {{ isDownloadingPdf ? 'Téléchargement...' : form?.aiSynthesis ? 'PDF avec synthèse IA' : 'Télécharger PDF' }}
+        </Button>
+        <Button as-child variant="secondary" size="sm">
+          <RouterLink to="/dashboard">Retour au tableau de bord</RouterLink>
+        </Button>
+      </div>
     </header>
+    <p v-if="pdfError" class="text-sm text-destructive" role="alert">{{ pdfError }}</p>
 
     <!-- Loading / error -->
     <div
@@ -180,11 +281,94 @@ const vaccinationsDisplay = computed(() => {
     <template v-else-if="form">
       <!-- AI synthesis (always shown — empty state has a CTA) -->
       <AiSynthesisPanel
-        :synthesis="form.aiSynthesis"
+        :synthesis="displayedSynthesis"
         :is-generating="isSynthesizing"
         :error="synthesisError"
         @generate="generateSynthesis"
       />
+
+      <section
+        v-if="form.aiSynthesisVersions.length"
+        aria-labelledby="ai-synthesis-versions-title"
+        class="rounded-[var(--r-lg)] border border-[var(--color-line)] bg-[var(--color-surface)] p-5"
+      >
+        <div class="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2
+              id="ai-synthesis-versions-title"
+              class="text-[11px] font-medium uppercase tracking-[0.08em] text-[var(--color-muted-strong)]"
+            >
+              Versions de synthèse
+            </h2>
+            <p class="mt-1 text-xs text-[var(--color-ink-2)]">
+              {{ form.aiSynthesisVersions.length }} version{{ form.aiSynthesisVersions.length > 1 ? 's' : '' }} disponible{{ form.aiSynthesisVersions.length > 1 ? 's' : '' }}
+            </p>
+          </div>
+          <div class="flex flex-wrap items-center gap-2">
+            <Button
+              v-if="previewedVersion"
+              variant="secondary"
+              size="sm"
+              @click="clearVersionPreview"
+            >
+              Revenir à l'active
+            </Button>
+            <Button
+              v-if="hiddenVersionCount"
+              variant="secondary"
+              size="sm"
+              @click="showAllVersions = !showAllVersions"
+            >
+              {{ showAllVersions ? 'Réduire' : `Voir les ${hiddenVersionCount} anciennes` }}
+            </Button>
+          </div>
+        </div>
+
+        <ol class="mt-3 space-y-2 text-sm">
+          <li
+            v-for="version in visibleSynthesisVersions"
+            :key="version.id"
+            class="flex flex-wrap items-center justify-between gap-3 rounded-[var(--r-md)] border border-[var(--color-line)] bg-[var(--color-bg)] px-3 py-2"
+          >
+            <div class="space-y-1">
+              <div class="flex flex-wrap items-center gap-2">
+                <span class="font-medium text-[var(--color-ink)]">Version {{ version.version }}</span>
+                <span
+                  v-if="version.id === activeVersionId"
+                  class="rounded-full bg-[var(--color-primary-soft)] px-2 py-0.5 text-xs font-medium text-primary"
+                >
+                  Active
+                </span>
+                <span
+                  v-else-if="previewedVersion?.id === version.id"
+                  class="rounded-full bg-[var(--color-surface-2)] px-2 py-0.5 text-xs font-medium text-[var(--color-ink-2)]"
+                >
+                  Aperçu
+                </span>
+              </div>
+              <span class="block text-xs text-[var(--color-ink-2)]">
+                {{ formatDate(version.createdAt) }} · {{ version.model }}
+              </span>
+            </div>
+            <div class="flex flex-wrap items-center gap-2">
+              <Button variant="secondary" size="sm" @click="previewVersion(version)">
+                Voir
+              </Button>
+              <Button
+                variant="secondary"
+                size="sm"
+                :disabled="isActivatingVersion || version.id === activeVersionId"
+                @click="activateVersion(version)"
+              >
+                {{ version.id === activeVersionId ? 'Active' : 'Définir active' }}
+              </Button>
+            </div>
+          </li>
+        </ol>
+        <p v-if="versionActionError" class="mt-2 text-xs text-destructive" role="alert">
+          {{ versionActionError }}
+        </p>
+      </section>
 
       <!-- Patient data -->
       <section

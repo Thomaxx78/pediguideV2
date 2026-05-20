@@ -92,7 +92,7 @@ const trendConfig: Record<'aggravation' | 'amelioration' | 'stable', { label: st
 
 onMounted(async () => {
   try {
-    dossier.value = await api.children.get(id) as ChildDossier
+    dossier.value = await api.children.get<ChildDossier>(id)
   } catch (err: unknown) {
     error.value = err instanceof Error ? err.message : 'Impossible de charger ce dossier.'
   } finally {

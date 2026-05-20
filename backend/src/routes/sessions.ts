@@ -82,7 +82,7 @@ sessionsRouter.get('/', authenticateToken, async (req: AuthRequest, res: Respons
 // GET /api/sessions/:token — infos session pour le patient (public)
 sessionsRouter.get('/:token', async (req, res: Response): Promise<any> => {
   try {
-    const { token } = req.params;
+    const token = String(req.params.token || '');
     const [session] = await db.select({
       id: patientSessions.id,
       status: patientSessions.status,
@@ -116,7 +116,7 @@ sessionsRouter.get('/:token', async (req, res: Response): Promise<any> => {
 // POST /api/sessions/:token/respond — soumission du formulaire patient (public)
 sessionsRouter.post('/:token/respond', async (req, res: Response): Promise<any> => {
   try {
-    const { token } = req.params;
+    const token = String(req.params.token || '');
     const [session] = await db.select().from(patientSessions)
       .where(eq(patientSessions.patientToken, token)).limit(1);
 
@@ -188,7 +188,7 @@ sessionsRouter.post('/:token/respond', async (req, res: Response): Promise<any> 
 sessionsRouter.post('/:id/send-email', authenticateToken, async (req: AuthRequest, res: Response): Promise<any> => {
   try {
     const doctorId = req.user?.id;
-    const { id } = req.params;
+    const id = String(req.params.id || '');
 
     const [session] = await db.select().from(patientSessions)
       .where(and(eq(patientSessions.id, id), eq(patientSessions.doctorId, doctorId!))).limit(1);

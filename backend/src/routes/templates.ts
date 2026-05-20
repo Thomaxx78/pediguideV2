@@ -25,7 +25,7 @@ templatesRouter.get('/:id', authenticateToken, async (req: AuthRequest, res: Res
   try {
     const doctorId = req.user!.id;
     const [template] = await db.select().from(formTemplates)
-      .where(and(eq(formTemplates.id, req.params.id), eq(formTemplates.doctorId, doctorId)))
+      .where(and(eq(formTemplates.id, String(req.params.id || '')), eq(formTemplates.doctorId, doctorId)))
       .limit(1);
     if (!template) return res.status(404).json({ error: 'Template introuvable' });
     res.json(template);
@@ -67,7 +67,7 @@ templatesRouter.put('/:id', authenticateToken, async (req: AuthRequest, res: Res
 
     const [existing] = await db.select({ id: formTemplates.id })
       .from(formTemplates)
-      .where(and(eq(formTemplates.id, req.params.id), eq(formTemplates.doctorId, doctorId)))
+      .where(and(eq(formTemplates.id, String(req.params.id || '')), eq(formTemplates.doctorId, doctorId)))
       .limit(1);
 
     if (!existing) return res.status(404).json({ error: 'Template introuvable' });
@@ -80,7 +80,7 @@ templatesRouter.put('/:id', authenticateToken, async (req: AuthRequest, res: Res
         ...(isActive !== undefined && { isActive }),
         updatedAt: new Date(),
       })
-      .where(eq(formTemplates.id, req.params.id))
+      .where(eq(formTemplates.id, String(req.params.id || '')))
       .returning();
 
     res.json(updated);
@@ -95,12 +95,12 @@ templatesRouter.delete('/:id', authenticateToken, async (req: AuthRequest, res: 
     const doctorId = req.user!.id;
     const [existing] = await db.select({ id: formTemplates.id })
       .from(formTemplates)
-      .where(and(eq(formTemplates.id, req.params.id), eq(formTemplates.doctorId, doctorId)))
+      .where(and(eq(formTemplates.id, String(req.params.id || '')), eq(formTemplates.doctorId, doctorId)))
       .limit(1);
 
     if (!existing) return res.status(404).json({ error: 'Template introuvable' });
 
-    await db.delete(formTemplates).where(eq(formTemplates.id, req.params.id));
+    await db.delete(formTemplates).where(eq(formTemplates.id, String(req.params.id || '')));
     res.json({ success: true });
   } catch (e: any) {
     res.status(500).json({ error: 'Erreur serveur' });

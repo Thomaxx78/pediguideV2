@@ -57,7 +57,7 @@ const searchActive = computed(() => Boolean(search.value.trim()))
 
 onMounted(async () => {
   try {
-    children.value = await api.children.list() as ChildSummary[]
+    children.value = await api.children.list<ChildSummary[]>()
   } catch (err: unknown) {
     error.value = err instanceof Error ? err.message : 'Impossible de charger les dossiers.'
   } finally {

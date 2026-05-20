@@ -1,11 +1,13 @@
 import { Router, Response } from 'express';
 import Groq from 'groq-sdk';
-import { eq, and } from 'drizzle-orm';
+import { eq, and, desc } from 'drizzle-orm';
 import { db } from '../db';
-import { diagnosis, type AiSynthesis } from '../db/schema';
+import { aiSynthesisVersions, diagnosis, type AiSynthesis } from '../db/schema';
 import { authenticateToken, type AuthRequest } from '../middleware/auth.middleware';
 
 export const synthesizeRouter = Router();
+const AI_MODEL = 'llama-3.3-70b-versatile';
+const PROMPT_VERSION = '2026-05-20-v1';
 
 const SYSTEM_PROMPT = `Tu es un assistant médical qui aide les pédiatres à préparer leurs consultations.
 À partir des réponses d'un questionnaire pré-consultation rempli par un parent,
@@ -38,17 +40,20 @@ Format JSON attendu :
 
 synthesizeRouter.post('/:id/synthesize', authenticateToken, async (req: AuthRequest, res: Response): Promise<any> => {
   try {
-    const { id } = req.params;
+    const id = String(req.params.id || '');
+    const doctorId = req.user?.id;
 
-    const results = await db.select().from(diagnosis).where(eq(diagnosis.id, id)).limit(1);
+    if (!doctorId) {
+      return res.status(401).json({ error: 'Non authentifié' });
+    }
+
+    const results = await db.select().from(diagnosis)
+      .where(and(eq(diagnosis.id, id), eq(diagnosis.doctorId, doctorId)))
+      .limit(1);
     const record = results[0];
 
     if (!record) {
       return res.status(404).json({ error: 'Formulaire introuvable' });
-    }
-
-    if (record.aiSynthesis) {
-      return res.json({ synthesis: record.aiSynthesis, cached: true });
     }
 
     const apiKey = process.env.GROQ_API_KEY;
@@ -69,7 +74,7 @@ synthesizeRouter.post('/:id/synthesize', authenticateToken, async (req: AuthRequ
     };
 
     const completion = await client.chat.completions.create({
-      model: 'llama-3.3-70b-versatile',
+      model: AI_MODEL,
       messages: [
         { role: 'system', content: SYSTEM_PROMPT },
         {
@@ -85,11 +90,27 @@ synthesizeRouter.post('/:id/synthesize', authenticateToken, async (req: AuthRequ
     console.log('🤖 [Synthesize] Raw response:', rawText.substring(0, 200));
     const synthesis: AiSynthesis = JSON.parse(rawText);
 
+    const [latestVersion] = await db.select({ version: aiSynthesisVersions.version })
+      .from(aiSynthesisVersions)
+      .where(eq(aiSynthesisVersions.diagnosisId, id))
+      .orderBy(desc(aiSynthesisVersions.version))
+      .limit(1);
+    const nextVersion = (latestVersion?.version ?? 0) + 1;
+
+    const [createdVersion] = await db.insert(aiSynthesisVersions).values({
+      diagnosisId: id,
+      version: nextVersion,
+      synthesis,
+      model: AI_MODEL,
+      promptVersion: PROMPT_VERSION,
+      generatedByDoctorId: doctorId,
+    }).returning();
+
     await db.update(diagnosis)
       .set({ aiSynthesis: synthesis })
-      .where(eq(diagnosis.id, id));
+      .where(and(eq(diagnosis.id, id), eq(diagnosis.doctorId, doctorId)));
 
-    res.json({ synthesis, cached: false });
+    res.json({ synthesis, version: createdVersion, cached: false });
   } catch (error: any) {
     console.error('❌ [Synthesize] Erreur:', error);
     if (error instanceof SyntaxError) {
@@ -99,9 +120,46 @@ synthesizeRouter.post('/:id/synthesize', authenticateToken, async (req: AuthRequ
   }
 });
 
+synthesizeRouter.post('/:id/synthesis-versions/:versionId/activate', authenticateToken, async (req: AuthRequest, res: Response): Promise<any> => {
+  try {
+    const id = String(req.params.id || '');
+    const versionId = String(req.params.versionId || '');
+    const doctorId = req.user?.id;
+
+    if (!doctorId) {
+      return res.status(401).json({ error: 'Non authentifié' });
+    }
+
+    const [record] = await db.select().from(diagnosis)
+      .where(and(eq(diagnosis.id, id), eq(diagnosis.doctorId, doctorId)))
+      .limit(1);
+
+    if (!record) {
+      return res.status(404).json({ error: 'Formulaire introuvable' });
+    }
+
+    const [version] = await db.select().from(aiSynthesisVersions)
+      .where(and(eq(aiSynthesisVersions.id, versionId), eq(aiSynthesisVersions.diagnosisId, id)))
+      .limit(1);
+
+    if (!version) {
+      return res.status(404).json({ error: 'Version de synthèse introuvable' });
+    }
+
+    await db.update(diagnosis)
+      .set({ aiSynthesis: version.synthesis })
+      .where(and(eq(diagnosis.id, id), eq(diagnosis.doctorId, doctorId)));
+
+    res.json({ synthesis: version.synthesis, version });
+  } catch (error: any) {
+    console.error('❌ [Synthesize] Activation version erreur:', error);
+    res.status(500).json({ error: 'Erreur lors de l’activation de la version' });
+  }
+});
+
 synthesizeRouter.get('/:id', authenticateToken, async (req: AuthRequest, res: Response): Promise<any> => {
   try {
-    const { id } = req.params;
+    const id = String(req.params.id || '');
     const doctorId = req.user?.id;
     const results = await db.select().from(diagnosis)
       .where(and(eq(diagnosis.id, id), eq(diagnosis.doctorId, doctorId!)))
@@ -110,7 +168,10 @@ synthesizeRouter.get('/:id', authenticateToken, async (req: AuthRequest, res: Re
     if (!record) {
       return res.status(404).json({ error: 'Formulaire introuvable' });
     }
-    res.json(record);
+    const versions = await db.select().from(aiSynthesisVersions)
+      .where(eq(aiSynthesisVersions.diagnosisId, id))
+      .orderBy(desc(aiSynthesisVersions.version));
+    res.json({ ...record, aiSynthesisVersions: versions });
   } catch (error: any) {
     res.status(500).json({ error: 'Erreur serveur' });
   }

@@ -116,16 +116,16 @@ const removeQuestion = (index: number) => {
 
 const moveUp = (index: number) => {
   if (index === 0) return
-  const q = questions.value.splice(index, 1)[0]
-  if (!q) return
+  const [q] = questions.value.splice(index, 1)
+  if (q === undefined) return
   questions.value.splice(index - 1, 0, q)
   // activeId-based, no manual sync needed.
 }
 
 const moveDown = (index: number) => {
   if (index === questions.value.length - 1) return
-  const q = questions.value.splice(index, 1)[0]
-  if (!q) return
+  const [q] = questions.value.splice(index, 1)
+  if (q === undefined) return
   questions.value.splice(index + 1, 0, q)
 }
 

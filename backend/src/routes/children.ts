@@ -45,7 +45,7 @@ childrenRouter.get('/:id', authenticateToken, async (req: AuthRequest, res: Resp
     const doctorId = req.user?.id;
     if (!doctorId) return res.status(401).json({ error: 'Non authentifié' });
 
-    const { id } = req.params;
+    const id = String(req.params.id || '');
 
     const [child] = await db.select().from(children)
       .where(and(eq(children.id, id), eq(children.doctorId, doctorId)))

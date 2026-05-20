@@ -32,8 +32,7 @@ const router = createRouter({
     {
       path: '/diagnosis',
       name: 'diagnosis',
-      component: () => import('@/pages/DiagnosisView.vue'),
-      meta: { layout: 'parent' },
+      redirect: { name: 'login' },
     },
     {
       path: '/form/:token',

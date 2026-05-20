@@ -50,6 +50,13 @@
       "when": 1779266806077,
       "tag": "0006_pediguide_parent_redesign",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1779286200000,
+      "tag": "0007_ai_synthesis_versions",
+      "breakpoints": true
     }
   ]
 }

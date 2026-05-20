@@ -44,7 +44,7 @@ import HeroUtil from "@/components/utils/HeroUtil.vue";
             size="lg"
             class="focus-visible:ring-4 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
           >
-            <RouterLink to="/diagnosis">Commencer mon diagnostic</RouterLink>
+            <RouterLink to="/login">Accéder à mon espace</RouterLink>
           </Button>
           <Button
             asChild
@@ -52,7 +52,7 @@ import HeroUtil from "@/components/utils/HeroUtil.vue";
             size="lg"
             class="focus-visible:ring-4 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
           >
-            <RouterLink to="/login">Je suis médecin</RouterLink>
+            <RouterLink to="/register">Créer un compte médecin</RouterLink>
           </Button>
         </div>
       </div>

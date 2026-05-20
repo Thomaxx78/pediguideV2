@@ -1,11 +1,24 @@
 import { Router, Request, Response } from 'express';
 import PDFDocument from 'pdfkit';
-import { desc, eq } from 'drizzle-orm';
+import { desc, eq, and } from 'drizzle-orm';
+import jwt from 'jsonwebtoken';
 import { db } from '../db';
-import { diagnosis } from '../db/schema';
+import { aiSynthesisVersions, diagnosis, patientSessions } from '../db/schema';
 import { authenticateToken, type AuthRequest } from '../middleware/auth.middleware';
 
 export const diagnosisRouter = Router();
+
+const priorityLabels: Record<string, string> = {
+  non_urgent: 'Non urgent',
+  a_surveiller: 'À surveiller',
+  urgent: 'Urgent',
+};
+
+const worryLabels: Record<string, string> = {
+  faible: 'Faible',
+  modéré: 'Modéré',
+  élevé: 'Élevé',
+};
 
 const formatDate = (date: Date) => {
   const year = date.getFullYear();
@@ -72,46 +85,32 @@ type DiagnosisPayload = {
 };
 
 diagnosisRouter.post('/', async (req: Request, res: Response) => {
-  try {
-    const data = req.body as DiagnosisPayload;
-
-    const result = await db.insert(diagnosis).values({
-      // Legacy fields (kept for back-compat)
-      childFirstName: data.childFirstName ?? null,
-      childLastName: data.childLastName ?? null,
-      childBirthDate: data.childBirthDate ?? null,
-      consultationReason: data.consultationReason ?? null,
-      behaviorChanges: (data.behaviorChanges ?? []) as string[],
-      clinicalSigns: (data.clinicalSigns ?? []) as string[],
-      duration: data.duration ?? null,
-      worryLevel: data.worryLevel ?? null,
-      actionsTaken: (data.actionsTaken ?? []) as string[],
-      additionalNotes: data.additionalNotes ?? '',
-
-      // New Pediguide redesign fields
-      weight: data.weight ?? null,
-      height: data.height ?? null,
-      gender: data.gender ?? null,
-      symptoms: data.symptoms ?? [],
-      symptomOther: data.symptomOther ?? null,
-      symptomTimeline: data.symptomTimeline ?? {},
-      symptomSeverity: data.symptomSeverity ?? {},
-      allergies: data.allergies ?? [],
-      noAllergies: data.noAllergies ?? false,
-      treatments: data.treatments ?? null,
-      antecedents: data.antecedents ?? [],
-      noAntecedents: data.noAntecedents ?? false,
-      vaccinations: data.vaccinations ?? null,
-      worry: data.worry ?? null,
-      photoName: data.photoName ?? null,
-    }).returning({ id: diagnosis.id });
-
-    res.json({ success: true, id: result[0].id });
-  } catch (error) {
-    console.error("Détail de l'erreur", error);
-    res.status(500).json({ error: "Erreur lors de l'enregistrement" });
-  }
+  res.status(410).json({
+    error: 'Ce formulaire public est désactivé. Utilisez un lien de session patient envoyé par un médecin.',
+  });
 });
+
+const getDoctorIdFromAuthorization = (req: Request) => {
+  const authHeader = req.headers.authorization;
+  const token = authHeader?.startsWith('Bearer ') ? authHeader.slice('Bearer '.length) : null;
+  const jwtSecret = process.env.JWT_SECRET;
+
+  if (!token || !jwtSecret) return null;
+
+  try {
+    const decoded = jwt.verify(token, jwtSecret) as { id?: string };
+    return decoded.id ?? null;
+  } catch {
+    return null;
+  }
+};
+
+const getPatientToken = (req: Request) => {
+  const headerToken = req.headers['x-patient-token'];
+  const queryToken = req.query.token;
+  const rawToken = Array.isArray(headerToken) ? headerToken[0] : headerToken || queryToken;
+  return typeof rawToken === 'string' ? rawToken.trim() : '';
+};
 
 /**
  * Symptom-id → French label dictionary. Used by the PDF to render readable
@@ -186,7 +185,7 @@ const mapIds = (ids: string[] | null | undefined, dict: Record<string, string>) 
 
 diagnosisRouter.get('/:id/pdf', async (req: Request, res: Response) => {
   try {
-    const { id } = req.params;
+    const id = String(req.params.id || '');
 
     if (!id) {
       return res.status(400).json({ error: 'Identifiant manquant' });
@@ -198,6 +197,28 @@ diagnosisRouter.get('/:id/pdf', async (req: Request, res: Response) => {
     if (!record) {
       return res.status(404).json({ error: 'Diagnostic introuvable' });
     }
+
+    const doctorId = getDoctorIdFromAuthorization(req);
+    const isDoctorOwner = !!doctorId && !!record.doctorId && record.doctorId === doctorId;
+    let isPatientSessionOwner = false;
+    const patientToken = getPatientToken(req);
+
+    if (patientToken && record.sessionId) {
+      const [session] = await db.select({ id: patientSessions.id })
+        .from(patientSessions)
+        .where(and(eq(patientSessions.id, record.sessionId), eq(patientSessions.patientToken, patientToken)))
+        .limit(1);
+      isPatientSessionOwner = !!session;
+    }
+
+    if (!isDoctorOwner && !isPatientSessionOwner) {
+      return res.status(403).json({ error: 'Accès interdit' });
+    }
+
+    const [latestSynthesisVersion] = await db.select().from(aiSynthesisVersions)
+      .where(eq(aiSynthesisVersions.diagnosisId, id))
+      .orderBy(desc(aiSynthesisVersions.version))
+      .limit(1);
 
     const fileDate = formatDate(new Date());
     res.setHeader('Content-Type', 'application/pdf');
@@ -254,6 +275,12 @@ diagnosisRouter.get('/:id/pdf', async (req: Request, res: Response) => {
       doc.moveDown(0.2);
     };
 
+    const addParagraph = (label: string, value?: string | null) => {
+      doc.font('Helvetica-Bold').fillColor(darkInk).text(label, pageLeft, doc.y, { width: contentWidth });
+      doc.font('Helvetica').fillColor('#111111').text(formatTextValue(value), pageLeft, doc.y, { width: contentWidth });
+      doc.moveDown(0.2);
+    };
+
     doc.font('Helvetica').fontSize(11).lineGap(2).fillColor('#111111');
 
     // Header
@@ -287,6 +314,31 @@ diagnosisRouter.get('/:id/pdf', async (req: Request, res: Response) => {
     if (record.gender) addKeyValue('Genre :', GENDER_LABELS[record.gender] ?? record.gender);
     drawSectionSeparator(doc, separatorGray, pageLeft, pageRight);
     doc.moveDown(0.6);
+
+    if (record.aiSynthesis) {
+      addSectionTitle('Synthèse IA');
+      if (latestSynthesisVersion) {
+        addKeyValue('Version :', `v${latestSynthesisVersion.version} - ${formatDate(new Date(latestSynthesisVersion.createdAt ?? new Date()))}`);
+        addKeyValue('Modèle :', latestSynthesisVersion.model);
+        addKeyValue('Prompt :', latestSynthesisVersion.promptVersion);
+      }
+      addKeyValue('Priorité :', priorityLabels[record.aiSynthesis.niveau_priorite] ?? record.aiSynthesis.niveau_priorite);
+      addKeyValue(
+        "Niveau d'inquiétude parent :",
+        worryLabels[record.aiSynthesis.niveau_inquietude_parent] ?? record.aiSynthesis.niveau_inquietude_parent,
+      );
+      addParagraph('Motif principal :', record.aiSynthesis.motif_principal);
+      addBulletList('Symptômes clés :', normalizeList(record.aiSynthesis.symptomes_cles));
+      addKeyValue("Durée d'évolution :", formatTextValue(record.aiSynthesis.duree_evolution));
+      addBulletList('Actions déjà prises :', normalizeList(record.aiSynthesis.actions_deja_prises));
+      addBulletList("Points d'attention :", normalizeList(record.aiSynthesis.points_attention));
+      if (record.aiSynthesis.resume_message_libre) {
+        addParagraph('Message complémentaire résumé :', record.aiSynthesis.resume_message_libre);
+      }
+      addParagraph('Disclaimer IA :', record.aiSynthesis.disclaimer);
+      drawSectionSeparator(doc, separatorGray, pageLeft, pageRight);
+      doc.moveDown(0.6);
+    }
 
     // Symptômes & chronologie / intensité
     addSectionTitle('Symptômes');
