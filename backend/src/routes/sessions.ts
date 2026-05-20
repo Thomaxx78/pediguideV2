@@ -2,12 +2,287 @@ import { Router, Response } from 'express';
 import { eq, and } from 'drizzle-orm';
 import { randomUUID } from 'crypto';
 import { db } from '../db';
-import { patientSessions, diagnosis, doctors, formTemplates, children, DEFAULT_QUESTIONS } from '../db/schema';
+import {
+  patientSessions,
+  diagnosis,
+  formTemplates,
+  children,
+  DEFAULT_QUESTIONS,
+  diagnosis_question_proposition_table,
+  diagnosis_question_table,
+  response_table,
+  response_to_question_table,
+  type Question,
+  type QuestionType,
+} from '../db/schema';
 import { authenticateToken, type AuthRequest } from '../middleware/auth.middleware';
 import { sendFormLinkEmail } from '../lib/email';
 import { computeTriageScore } from '../services/triage.service';
 
 export const sessionsRouter = Router();
+
+type DbQuestionType = 'short' | 'long' | 'radio' | 'checkbox';
+
+const toDbQuestionType = (type: QuestionType): DbQuestionType => {
+  if (type === 'textarea') return 'long';
+  if (type === 'single_choice') return 'radio';
+  if (type === 'multiple_choice') return 'checkbox';
+  return 'short';
+};
+
+const toClientQuestionType = (type: DbQuestionType): QuestionType => {
+  if (type === 'long') return 'textarea';
+  if (type === 'radio') return 'single_choice';
+  if (type === 'checkbox') return 'multiple_choice';
+  return 'text';
+};
+
+const normalizeQuestion = (question: Question): Question => ({
+  id: question.id || randomUUID(),
+  type: question.type,
+  label: question.label?.trim() || 'Question sans titre',
+  required: Boolean(question.required),
+  options: question.type === 'single_choice' || question.type === 'multiple_choice'
+    ? (question.options ?? []).map((option) => String(option).trim()).filter(Boolean)
+    : undefined,
+});
+
+const loadTemplateQuestions = async (formTemplateId: string | null): Promise<Question[]> => {
+  if (!formTemplateId) return DEFAULT_QUESTIONS;
+
+  const [template] = await db.select({ questions: formTemplates.questions })
+    .from(formTemplates)
+    .where(eq(formTemplates.id, formTemplateId))
+    .limit(1);
+  const fallbackQuestions = template?.questions?.length ? template.questions.map(normalizeQuestion) : DEFAULT_QUESTIONS;
+
+  const [templateDiagnosis] = await db.query.diagnosis.findMany({
+    where: and(eq(diagnosis.formTemplateId, formTemplateId), eq(diagnosis.status, 'template')),
+    with: {
+      questions: {
+        with: {
+          propositions: true,
+        },
+      },
+    },
+    limit: 1,
+  });
+
+  if (templateDiagnosis?.questions?.length) {
+    return templateDiagnosis.questions.map((question, index) => ({
+      id: question.id,
+      type: fallbackQuestions[index]?.type ?? toClientQuestionType(question.type as DbQuestionType),
+      label: question.question,
+      required: Boolean(question.required),
+      options: question.propositions?.map((proposition) => proposition.proposition) ?? [],
+    }));
+  }
+
+  return fallbackQuestions;
+};
+
+type SessionQuestion = Question & {
+  propositions?: Array<{ id: string; value: string }>;
+};
+
+const loadPersistedSessionQuestions = async (diagnosisId: string): Promise<SessionQuestion[]> => {
+  const [record] = await db.query.diagnosis.findMany({
+    where: eq(diagnosis.id, diagnosisId),
+    with: {
+      questions: {
+        with: {
+          propositions: true,
+        },
+      },
+    },
+    limit: 1,
+  });
+
+  return (record?.questions ?? []).map((question) => {
+    const propositions = question.propositions?.map((proposition) => ({
+      id: proposition.id,
+      value: proposition.proposition,
+    })) ?? [];
+
+    return {
+      id: question.id,
+      type: /date|naissance/i.test(question.question)
+        ? 'date'
+        : toClientQuestionType(question.type as DbQuestionType),
+      label: question.question,
+      required: Boolean(question.required),
+      options: propositions.map((proposition) => proposition.value),
+      propositions,
+    };
+  });
+};
+
+const ensureSessionResponse = async (
+  session: {
+    id: string;
+    doctorId: string;
+    formTemplateId: string | null;
+  },
+): Promise<{ diagnosisId: string; responseId: string; questions: SessionQuestion[] }> => {
+  const [existingDiagnosis] = await db.select({ id: diagnosis.id })
+    .from(diagnosis)
+    .where(and(eq(diagnosis.sessionId, session.id), eq(diagnosis.status, 'pending_response')))
+    .limit(1);
+
+  if (existingDiagnosis) {
+    let [existingResponse] = await db.select({ id: response_table.id })
+      .from(response_table)
+      .where(eq(response_table.diagnosis_id, existingDiagnosis.id))
+      .limit(1);
+
+    if (!existingResponse) {
+      [existingResponse] = await db.insert(response_table).values({
+        diagnosis_id: existingDiagnosis.id,
+      }).returning({ id: response_table.id });
+    }
+
+    return {
+      diagnosisId: existingDiagnosis.id,
+      responseId: existingResponse.id,
+      questions: await loadPersistedSessionQuestions(existingDiagnosis.id),
+    };
+  }
+
+  const templateQuestions = await loadTemplateQuestions(session.formTemplateId);
+
+  const created = await db.transaction(async (tx) => {
+    const [createdDiagnosis] = await tx.insert(diagnosis).values({
+      doctorId: session.doctorId,
+      sessionId: session.id,
+      formTemplateId: session.formTemplateId,
+      status: 'pending_response',
+    }).returning({ id: diagnosis.id });
+
+    const normalizedQuestions = templateQuestions.map(normalizeQuestion);
+    const createdQuestions = normalizedQuestions.length
+      ? await tx.insert(diagnosis_question_table).values(
+        normalizedQuestions.map((question) => ({
+          diagnosis_id: createdDiagnosis.id,
+          question: question.label,
+          description: null,
+          type: toDbQuestionType(question.type),
+          required: question.required,
+        })),
+      ).returning()
+      : [];
+
+    const propositionRows = normalizedQuestions.flatMap((question, questionIndex) => {
+      const createdQuestion = createdQuestions[questionIndex];
+      if (!createdQuestion) return [];
+
+      return (question.options ?? []).map((option) => ({
+        diagnosis_id: createdDiagnosis.id,
+        question_id: createdQuestion.id,
+        proposition: option,
+      }));
+    });
+
+    if (propositionRows.length) {
+      await tx.insert(diagnosis_question_proposition_table).values(propositionRows);
+    }
+
+    const [createdResponse] = await tx.insert(response_table).values({
+      diagnosis_id: createdDiagnosis.id,
+    }).returning({ id: response_table.id });
+
+    return {
+      diagnosisId: createdDiagnosis.id,
+      responseId: createdResponse.id,
+    };
+  });
+
+  return {
+    ...created,
+    questions: await loadPersistedSessionQuestions(created.diagnosisId),
+  };
+};
+
+const getAnswerByLabel = (
+  answers: Record<string, string | string[]>,
+  questions: Question[],
+  labelPattern: RegExp,
+) => {
+  const question = questions.find((q) => labelPattern.test(q.label));
+  const value = question ? answers[question.id] : undefined;
+  return Array.isArray(value) ? value[0] ?? '' : value ?? '';
+};
+
+const getArrayAnswerByLabel = (
+  answers: Record<string, string | string[]>,
+  questions: Question[],
+  labelPattern: RegExp,
+) => {
+  const question = questions.find((q) => labelPattern.test(q.label));
+  const value = question ? answers[question.id] : undefined;
+  return Array.isArray(value) ? value : value ? [value] : [];
+};
+
+const persistNormalizedResponse = async (
+  tx: Parameters<Parameters<typeof db.transaction>[0]>[0],
+  diagnosisId: string,
+  questions: Question[],
+  answers: Record<string, string | string[]>,
+) => {
+  const normalizedQuestions = questions.map(normalizeQuestion);
+  if (!normalizedQuestions.length) return;
+
+  const createdQuestions = await tx.insert(diagnosis_question_table).values(
+    normalizedQuestions.map((question) => ({
+      diagnosis_id: diagnosisId,
+      question: question.label,
+      description: null,
+      type: toDbQuestionType(question.type),
+      required: question.required,
+    })),
+  ).returning();
+
+  const propositions = normalizedQuestions.flatMap((question, questionIndex) => {
+    const createdQuestion = createdQuestions[questionIndex];
+    if (!createdQuestion) return [];
+    return (question.options ?? []).map((option) => ({
+      diagnosis_id: diagnosisId,
+      question_id: createdQuestion.id,
+      proposition: option,
+    }));
+  });
+
+  const createdPropositions = propositions.length
+    ? await tx.insert(diagnosis_question_proposition_table).values(propositions).returning()
+    : [];
+
+  const propositionsByQuestionAndValue = new Map<string, string>();
+  for (const proposition of createdPropositions) {
+    propositionsByQuestionAndValue.set(`${proposition.question_id}:${proposition.proposition}`, proposition.id);
+  }
+
+  const [response] = await tx.insert(response_table).values({
+    diagnosis_id: diagnosisId,
+    answeredAt: new Date(),
+  }).returning({ id: response_table.id });
+
+  const responseRows = normalizedQuestions.flatMap((question, questionIndex) => {
+    const createdQuestion = createdQuestions[questionIndex];
+    if (!createdQuestion) return [];
+
+    const rawValue = answers[question.id];
+    const values = Array.isArray(rawValue) ? rawValue : rawValue ? [rawValue] : [];
+    return values.map((value) => ({
+      response_id: response.id,
+      question_id: createdQuestion.id,
+      proposition_id: propositionsByQuestionAndValue.get(`${createdQuestion.id}:${value}`) ?? null,
+      value,
+    }));
+  });
+
+  if (responseRows.length) {
+    await tx.insert(response_to_question_table).values(responseRows);
+  }
+};
 
 // POST /api/sessions — créer une session patient (auth médecin)
 sessionsRouter.post('/', authenticateToken, async (req: AuthRequest, res: Response): Promise<any> => {
@@ -86,6 +361,7 @@ sessionsRouter.get('/:token', async (req, res: Response): Promise<any> => {
     const token = String(req.params.token || '');
     const [session] = await db.select({
       id: patientSessions.id,
+      doctorId: patientSessions.doctorId,
       status: patientSessions.status,
       expiresAt: patientSessions.expiresAt,
       patientFirstName: patientSessions.patientFirstName,
@@ -100,15 +376,14 @@ sessionsRouter.get('/:token', async (req, res: Response): Promise<any> => {
       return res.status(409).json({ error: 'Ce formulaire a déjà été rempli' });
     }
 
-    // Charger les questions du template si associé
-    let questions = DEFAULT_QUESTIONS;
-    if (session.formTemplateId) {
-      const [template] = await db.select({ questions: formTemplates.questions })
-        .from(formTemplates).where(eq(formTemplates.id, session.formTemplateId)).limit(1);
-      if (template) questions = template.questions;
-    }
+    const response = await ensureSessionResponse(session);
 
-    res.json({ ...session, questions });
+    res.json({
+      ...session,
+      diagnosisId: response.diagnosisId,
+      responseId: response.responseId,
+      questions: response.questions,
+    });
   } catch (error: any) {
     res.status(500).json({ error: 'Erreur serveur' });
   }
@@ -126,15 +401,16 @@ sessionsRouter.post('/:token/respond', async (req, res: Response): Promise<any> 
     if (session.status === 'completed') return res.status(409).json({ error: 'Déjà soumis' });
 
     const data = req.body;
-    const isCustom = !!session.formTemplateId;
+    const questions = await loadTemplateQuestions(session.formTemplateId);
+    const answers = (data.answers ?? {}) as Record<string, string | string[]>;
     const nir: string | null = data.nir?.trim() || null;
 
     // Matching NIR : cherche ou crée le dossier enfant
     let childId: string | null = null;
     if (nir) {
-      const firstName = (data.childFirstName || data.answers?.q1 || '').trim();
-      const lastName = (data.childLastName || data.answers?.q2 || '').trim();
-      const birthDate = (data.childBirthDate || data.answers?.q3 || '').trim();
+      const firstName = (data.childFirstName || getAnswerByLabel(answers, questions, /prénom/i) || '').trim();
+      const lastName = (data.childLastName || getAnswerByLabel(answers, questions, /nom/i) || '').trim();
+      const birthDate = (data.childBirthDate || getAnswerByLabel(answers, questions, /naissance/i) || '').trim();
 
       const [existing] = await db.select({ id: children.id })
         .from(children)
@@ -155,39 +431,45 @@ sessionsRouter.post('/:token/respond', async (req, res: Response): Promise<any> 
       }
     }
 
-    const childBirthDate = data.childBirthDate || data.answers?.q3 || 'N/A';
+    const childBirthDate = data.childBirthDate || getAnswerByLabel(answers, questions, /naissance/i) || 'N/A';
     const triage = computeTriageScore({
-      clinicalSigns: (data.clinicalSigns || []) as string[],
-      behaviorChanges: (data.behaviorChanges || []) as string[],
-      worryLevel: data.worryLevel || '',
-      duration: data.duration || '',
+      clinicalSigns: (data.clinicalSigns || getArrayAnswerByLabel(answers, questions, /signes cliniques/i)) as string[],
+      behaviorChanges: (data.behaviorChanges || getArrayAnswerByLabel(answers, questions, /comportement/i)) as string[],
+      worryLevel: data.worryLevel || getAnswerByLabel(answers, questions, /inquiétude/i),
+      duration: data.duration || getAnswerByLabel(answers, questions, /combien de temps|durée|depuis/i),
       childBirthDate,
     });
 
-    const [record] = await db.insert(diagnosis).values({
-      childFirstName: data.childFirstName || data.answers?.q1 || 'N/A',
-      childLastName: data.childLastName || data.answers?.q2 || 'N/A',
-      childBirthDate,
-      consultationReason: data.consultationReason || data.answers?.q4 || 'N/A',
-      behaviorChanges: (data.behaviorChanges || []) as string[],
-      clinicalSigns: (data.clinicalSigns || []) as string[],
-      duration: data.duration || 'N/A',
-      worryLevel: data.worryLevel || 'N/A',
-      actionsTaken: (data.actionsTaken || []) as string[],
-      additionalNotes: data.additionalNotes || '',
-      doctorId: session.doctorId,
-      sessionId: session.id,
-      formTemplateId: session.formTemplateId || null,
-      customAnswers: isCustom ? (data.answers || {}) : null,
-      childId,
-      nir,
-      triageLevel: triage.level,
-      triageScore: String(triage.score),
-    }).returning({ id: diagnosis.id });
+    const record = await db.transaction(async (tx) => {
+      const [createdDiagnosis] = await tx.insert(diagnosis).values({
+        childFirstName: data.childFirstName || getAnswerByLabel(answers, questions, /prénom/i) || null,
+        childLastName: data.childLastName || getAnswerByLabel(answers, questions, /nom/i) || null,
+        childBirthDate,
+        consultationReason: data.consultationReason || getAnswerByLabel(answers, questions, /motif/i) || null,
+        behaviorChanges: (data.behaviorChanges || getArrayAnswerByLabel(answers, questions, /comportement/i)) as string[],
+        clinicalSigns: (data.clinicalSigns || getArrayAnswerByLabel(answers, questions, /signes cliniques/i)) as string[],
+        duration: data.duration || getAnswerByLabel(answers, questions, /combien de temps|durée|depuis/i) || null,
+        worryLevel: data.worryLevel || getAnswerByLabel(answers, questions, /inquiétude/i) || null,
+        actionsTaken: (data.actionsTaken || getArrayAnswerByLabel(answers, questions, /actions/i)) as string[],
+        additionalNotes: data.additionalNotes || getAnswerByLabel(answers, questions, /complémentaires|message libre/i) || '',
+        doctorId: session.doctorId,
+        sessionId: session.id,
+        formTemplateId: session.formTemplateId || null,
+        customAnswers: answers,
+        childId,
+        nir,
+        triageLevel: triage.level,
+        triageScore: String(triage.score),
+      }).returning({ id: diagnosis.id });
 
-    await db.update(patientSessions)
-      .set({ status: 'completed' })
-      .where(eq(patientSessions.id, session.id));
+      await persistNormalizedResponse(tx, createdDiagnosis.id, questions, answers);
+
+      await tx.update(patientSessions)
+        .set({ status: 'completed' })
+        .where(eq(patientSessions.id, session.id));
+
+      return createdDiagnosis;
+    });
 
     res.json({ success: true, id: record.id });
   } catch (error: any) {
