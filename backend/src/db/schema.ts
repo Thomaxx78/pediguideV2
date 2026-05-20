@@ -125,6 +125,8 @@ export const diagnosis = pgTable('formulaires', {
   formTemplateId: uuid('form_template_id').references(() => formTemplates.id),
   childId: uuid('child_id').references(() => children.id),
   nir: text('nir'),
+  triageLevel: text('triage_level'),
+  triageScore: text('triage_score'),
 });
 
 export const aiSynthesisVersions = pgTable('ai_synthesis_versions', {

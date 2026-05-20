@@ -68,7 +68,10 @@ export interface DiagnosisRecord {
   status?: string | null
   aiSynthesis?: AiSynthesis | null
   aiSynthesisVersions?: AiSynthesisVersion[]
+  triageLevel?: TriageLevel | null
 }
+
+export type TriageLevel = 'rouge' | 'orange' | 'jaune' | 'vert'
 
 export interface DoctorFormSummary {
   id: string
@@ -79,6 +82,7 @@ export interface DoctorFormSummary {
   status: string
   /** Convenience pull from aiSynthesis.niveau_priorite so the dashboard can render a dot. */
   aiPriority: 'non_urgent' | 'a_surveiller' | 'urgent' | null
+  triageLevel: TriageLevel | null
 }
 
 export interface DoctorFormDetail extends DoctorFormSummary {
@@ -154,6 +158,7 @@ const toSummary = (record: DiagnosisRecord): DoctorFormSummary => ({
   submittedAt: record.createdAt,
   status: record.status ?? 'new',
   aiPriority: record.aiSynthesis?.niveau_priorite ?? null,
+  triageLevel: record.triageLevel ?? null,
 })
 
 const toDetail = (record: DiagnosisRecord): DoctorFormDetail => ({

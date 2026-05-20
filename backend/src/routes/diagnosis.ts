@@ -5,6 +5,7 @@ import jwt from 'jsonwebtoken';
 import { db } from '../db';
 import { aiSynthesisVersions, diagnosis, patientSessions } from '../db/schema';
 import { authenticateToken, type AuthRequest } from '../middleware/auth.middleware';
+import { computeTriageScore } from '../services/triage.service';
 
 export const diagnosisRouter = Router();
 

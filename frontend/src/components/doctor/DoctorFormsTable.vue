@@ -161,6 +161,9 @@ const handleRowKeydown = (event: KeyboardEvent, id: string) => {
               Patient
             </th>
             <th scope="col" class="px-6 py-3 text-[11px] font-medium uppercase tracking-wide text-[var(--color-muted-strong)]">
+              Triage
+            </th>
+            <th scope="col" class="px-6 py-3 text-[11px] font-medium uppercase tracking-wide text-[var(--color-muted-strong)]">
               Date
             </th>
             <th scope="col" class="px-6 py-3 text-[11px] font-medium uppercase tracking-wide text-[var(--color-muted-strong)]">
@@ -195,6 +198,31 @@ const handleRowKeydown = (event: KeyboardEvent, id: string) => {
                   {{ form.patientLastName }}
                 </span>
               </span>
+            </td>
+            <td class="px-6 py-4">
+              <span
+                v-if="form.triageLevel"
+                class="inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[11.5px] font-medium"
+                :class="{
+                  'bg-red-100 text-red-700': form.triageLevel === 'rouge',
+                  'bg-orange-100 text-orange-700': form.triageLevel === 'orange',
+                  'bg-yellow-100 text-yellow-700': form.triageLevel === 'jaune',
+                  'bg-emerald-100 text-emerald-700': form.triageLevel === 'vert',
+                }"
+              >
+                <span
+                  class="h-1.5 w-1.5 rounded-full"
+                  :class="{
+                    'bg-red-500': form.triageLevel === 'rouge',
+                    'bg-orange-500': form.triageLevel === 'orange',
+                    'bg-yellow-500': form.triageLevel === 'jaune',
+                    'bg-emerald-500': form.triageLevel === 'vert',
+                  }"
+                  aria-hidden="true"
+                />
+                {{ form.triageLevel.charAt(0).toUpperCase() + form.triageLevel.slice(1) }}
+              </span>
+              <span v-else class="text-[11.5px] text-[var(--color-muted-strong)]">—</span>
             </td>
             <td class="px-6 py-4 text-[var(--color-ink-2)]">{{ formatDate(form.submittedAt) }}</td>
             <td class="px-6 py-4 text-[var(--color-ink-2)]">{{ form.consultationReason || '—' }}</td>
