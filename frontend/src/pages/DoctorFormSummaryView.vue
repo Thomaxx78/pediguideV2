@@ -29,6 +29,7 @@ const synthesis = ref<AiSynthesis | null>(null)
 const synthesisVersions = ref<AiSynthesisVersion[]>([])
 const activeVersionId = ref<string | null>(null)
 const previewedVersion = ref<AiSynthesisVersion | null>(null)
+const showAllVersions = ref(false)
 const isSynthesizing = ref(false)
 const synthesisError = ref<string | null>(null)
 const isActivatingVersion = ref(false)
@@ -74,6 +75,12 @@ const displayedVersionLabel = computed(() => {
   return 'Générée automatiquement'
 })
 
+const visibleSynthesisVersions = computed(() =>
+  showAllVersions.value ? synthesisVersions.value : synthesisVersions.value.slice(0, 3)
+)
+
+const hiddenVersionCount = computed(() => Math.max(synthesisVersions.value.length - 3, 0))
+
 const loadForm = async () => {
   if (!formId.value) {
     error.value = 'Identifiant de formulaire manquant.'
@@ -115,6 +122,7 @@ const generateSynthesis = async () => {
       synthesisVersions.value = [result.version, ...synthesisVersions.value]
       activeVersionId.value = result.version.id
       previewedVersion.value = null
+      showAllVersions.value = false
     }
   } catch (err: unknown) {
     synthesisError.value = (err as Error).message || 'Erreur lors de la génération.'
@@ -176,6 +184,7 @@ watch(formId, () => {
   synthesisVersions.value = []
   activeVersionId.value = null
   previewedVersion.value = null
+  showAllVersions.value = false
   loadForm()
 })
 </script>
@@ -315,12 +324,27 @@ watch(formId, () => {
             </p>
 
             <div v-if="synthesisVersions.length" class="border-t border-border/70 pt-4">
-              <p class="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                Versions de synthèse
-              </p>
+              <div class="flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <p class="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                    Versions de synthèse
+                  </p>
+                  <p class="mt-1 text-xs text-muted-foreground">
+                    {{ synthesisVersions.length }} version{{ synthesisVersions.length > 1 ? 's' : '' }} disponible{{ synthesisVersions.length > 1 ? 's' : '' }}
+                  </p>
+                </div>
+                <Button
+                  v-if="hiddenVersionCount"
+                  variant="outline"
+                  size="sm"
+                  @click="showAllVersions = !showAllVersions"
+                >
+                  {{ showAllVersions ? 'Réduire' : `Voir les ${hiddenVersionCount} anciennes` }}
+                </Button>
+              </div>
               <ol class="mt-2 space-y-2 text-sm">
                 <li
-                  v-for="version in synthesisVersions"
+                  v-for="version in visibleSynthesisVersions"
                   :key="version.id"
                   class="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border/70 px-3 py-2"
                 >
