@@ -42,7 +42,7 @@ const scrollTo = (id: string) => {
       </nav>
 
       <div class="flex items-center gap-2">
-        <Button variant="ghost" size="sm" class="hidden sm:inline-flex" @click="goToLogin">
+        <Button variant="secondary" size="sm" class="hidden sm:inline-flex" @click="goToLogin">
           Se connecter
         </Button>
         <Button size="sm" @click="goToRegister">
