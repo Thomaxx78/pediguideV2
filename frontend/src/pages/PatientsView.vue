@@ -45,7 +45,7 @@ const getAge = (birthDate: string) => {
 
 onMounted(async () => {
   try {
-    children.value = await api.children.list()
+    children.value = await api.children.list<ChildSummary[]>()
   } catch (err: unknown) {
     error.value = err instanceof Error ? err.message : 'Impossible de charger les dossiers.'
   } finally {

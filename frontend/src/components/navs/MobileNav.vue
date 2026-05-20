@@ -71,13 +71,6 @@ watch(
           Accueil
         </RouterLink>
 
-        <RouterLink
-          to="/diagnosis"
-          class="rounded-md px-4 py-3 text-lg font-medium transition-colors hover:underline focus-visible:bg-muted focus-visible:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
-        >
-          Diagnostic
-        </RouterLink>
-
         <template v-if="isDoctorAuthenticated">
           <RouterLink
             to="/dashboard"

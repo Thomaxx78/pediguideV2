@@ -1,8 +1,9 @@
 import { Router, Request, Response } from 'express';
 import PDFDocument from 'pdfkit';
 import { desc, eq, and } from 'drizzle-orm';
+import jwt from 'jsonwebtoken';
 import { db } from '../db';
-import { diagnosis } from '../db/schema';
+import { diagnosis, patientSessions } from '../db/schema';
 import { authenticateToken, type AuthRequest } from '../middleware/auth.middleware';
 
 export const diagnosisRouter = Router();
@@ -37,35 +38,36 @@ const drawSectionSeparator = (doc: PDFDocumentType, color: string, left: number,
 };
 
 diagnosisRouter.post('/', async (req: Request, res: Response) => {
-  try {
-    const data = req.body;
-    
-    const result = await db.insert(diagnosis).values({
-      childFirstName: data.childFirstName,
-      childLastName: data.childLastName,
-      childBirthDate: data.childBirthDate,
-      consultationReason: data.consultationReason,
-      
-      behaviorChanges: (data.behaviorChanges || []) as string[],
-      clinicalSigns: (data.clinicalSigns || []) as string[],
-      
-      duration: data.duration,
-      worryLevel: data.worryLevel,
-      
-      actionsTaken: (data.actionsTaken || []) as string[],
-      additionalNotes: data.additionalNotes || ""
-    }).returning({ id: diagnosis.id });
-
-    res.json({ success: true, id: result[0].id });
-  } catch (error) {
-    console.error("Détail de l'erreur", error);
-    res.status(500).json({ error: "Erreur lors de l'enregistrement" });
-  }
+  res.status(410).json({
+    error: 'Ce formulaire public est désactivé. Utilisez un lien de session patient envoyé par un médecin.',
+  });
 });
+
+const getDoctorIdFromAuthorization = (req: Request) => {
+  const authHeader = req.headers.authorization;
+  const token = authHeader?.startsWith('Bearer ') ? authHeader.slice('Bearer '.length) : null;
+  const jwtSecret = process.env.JWT_SECRET;
+
+  if (!token || !jwtSecret) return null;
+
+  try {
+    const decoded = jwt.verify(token, jwtSecret) as { id?: string };
+    return decoded.id ?? null;
+  } catch {
+    return null;
+  }
+};
+
+const getPatientToken = (req: Request) => {
+  const headerToken = req.headers['x-patient-token'];
+  const queryToken = req.query.token;
+  const rawToken = Array.isArray(headerToken) ? headerToken[0] : headerToken || queryToken;
+  return typeof rawToken === 'string' ? rawToken.trim() : '';
+};
 
 diagnosisRouter.get('/:id/pdf', async (req: Request, res: Response) => {
   try {
-    const { id } = req.params;
+    const id = String(req.params.id || '');
 
     if (!id) {
       return res.status(400).json({ error: 'Identifiant manquant' });
@@ -76,6 +78,23 @@ diagnosisRouter.get('/:id/pdf', async (req: Request, res: Response) => {
 
     if (!record) {
       return res.status(404).json({ error: 'Diagnostic introuvable' });
+    }
+
+    const doctorId = getDoctorIdFromAuthorization(req);
+    const isDoctorOwner = !!doctorId && !!record.doctorId && record.doctorId === doctorId;
+    let isPatientSessionOwner = false;
+    const patientToken = getPatientToken(req);
+
+    if (patientToken && record.sessionId) {
+      const [session] = await db.select({ id: patientSessions.id })
+        .from(patientSessions)
+        .where(and(eq(patientSessions.id, record.sessionId), eq(patientSessions.patientToken, patientToken)))
+        .limit(1);
+      isPatientSessionOwner = !!session;
+    }
+
+    if (!isDoctorOwner && !isPatientSessionOwner) {
+      return res.status(403).json({ error: 'Accès interdit' });
     }
 
     const fileDate = formatDate(new Date());

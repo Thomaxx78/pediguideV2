@@ -18,6 +18,13 @@ const submissionId = computed(() => {
 
 const hasValidId = computed(() => submissionId.value.length > 0)
 
+const patientToken = computed(() => {
+  const raw = route.query.token
+  if (typeof raw === 'string') return raw.trim()
+  if (Array.isArray(raw)) return String(raw[0] || '').trim()
+  return ''
+})
+
 const formatDate = (date: Date) => {
   const year = date.getFullYear()
   const month = String(date.getMonth() + 1).padStart(2, '0')
@@ -50,8 +57,14 @@ const downloadPdf = async () => {
   statusMessage.value = 'Téléchargement du PDF en cours...'
 
   try {
+    const headers: Record<string, string> = {}
+    const authToken = localStorage.getItem('authToken')
+    if (authToken) headers.Authorization = `Bearer ${authToken}`
+    if (patientToken.value) headers['X-Patient-Token'] = patientToken.value
+
     const response = await fetch(
-      `${API_BASE_URL}/diagnosis/${encodeURIComponent(submissionId.value)}/pdf`
+      `${API_BASE_URL}/diagnosis/${encodeURIComponent(submissionId.value)}/pdf`,
+      { headers }
     )
 
     if (!response.ok) {

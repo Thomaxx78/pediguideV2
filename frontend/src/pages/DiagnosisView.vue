@@ -226,7 +226,7 @@ const submitForm = async () => {
     await router.push(`/results/${submissionId}`)
   } catch (error) {
     console.error(error)
-    errorMessage.value = "Une erreur est survenue lors de l'envoi."
+    errorMessage.value = error instanceof Error ? error.message : "Une erreur est survenue lors de l'envoi."
   } finally {
     isLoading.value = false
   }

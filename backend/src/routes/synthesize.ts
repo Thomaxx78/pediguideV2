@@ -38,9 +38,16 @@ Format JSON attendu :
 
 synthesizeRouter.post('/:id/synthesize', authenticateToken, async (req: AuthRequest, res: Response): Promise<any> => {
   try {
-    const { id } = req.params;
+    const id = String(req.params.id || '');
+    const doctorId = req.user?.id;
 
-    const results = await db.select().from(diagnosis).where(eq(diagnosis.id, id)).limit(1);
+    if (!doctorId) {
+      return res.status(401).json({ error: 'Non authentifié' });
+    }
+
+    const results = await db.select().from(diagnosis)
+      .where(and(eq(diagnosis.id, id), eq(diagnosis.doctorId, doctorId)))
+      .limit(1);
     const record = results[0];
 
     if (!record) {
@@ -87,7 +94,7 @@ synthesizeRouter.post('/:id/synthesize', authenticateToken, async (req: AuthRequ
 
     await db.update(diagnosis)
       .set({ aiSynthesis: synthesis })
-      .where(eq(diagnosis.id, id));
+      .where(and(eq(diagnosis.id, id), eq(diagnosis.doctorId, doctorId)));
 
     res.json({ synthesis, cached: false });
   } catch (error: any) {
@@ -101,7 +108,7 @@ synthesizeRouter.post('/:id/synthesize', authenticateToken, async (req: AuthRequ
 
 synthesizeRouter.get('/:id', authenticateToken, async (req: AuthRequest, res: Response): Promise<any> => {
   try {
-    const { id } = req.params;
+    const id = String(req.params.id || '');
     const doctorId = req.user?.id;
     const results = await db.select().from(diagnosis)
       .where(and(eq(diagnosis.id, id), eq(diagnosis.doctorId, doctorId!)))

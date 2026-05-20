@@ -55,7 +55,7 @@ const submit = async () => {
     })
     const data = await res.json()
     if (!res.ok) throw new Error(data.error || 'Erreur')
-    await router.push(`/results/${data.id}`)
+    await router.push(`/results/${data.id}?token=${encodeURIComponent(token)}`)
   } catch (e: unknown) {
     submitError.value = e instanceof Error ? e.message : "Erreur lors de l'envoi."
   } finally {

@@ -86,7 +86,6 @@ async function apiFetch<T = unknown>(
     }
 
     const data = await response.json();
-    console.log(data)
 
     if (!response.ok) {
       // Extract error message from response
@@ -180,11 +179,11 @@ export const api = {
    * Children (dossiers patients) endpoints
    */
   children: {
-    list: async () => {
-      return apiFetch('/children');
+    list: async <T = unknown>() => {
+      return apiFetch<T>('/children');
     },
-    get: async (id: string) => {
-      return apiFetch(`/children/${id}`);
+    get: async <T = unknown>(id: string) => {
+      return apiFetch<T>(`/children/${id}`);
     },
   },
 };
