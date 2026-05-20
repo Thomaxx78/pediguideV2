@@ -4,6 +4,7 @@
   "description": "",
   "main": "index.js",
   "scripts": {
+    "db:p": "drizzle-kit push",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
     "dev": "nodemon --exec ts-node src/app.ts",
