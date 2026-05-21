@@ -22,12 +22,14 @@ import { computeTriageScore } from '../services/triage.service';
 
 export const sessionsRouter = Router();
 
-type DbQuestionType = 'short' | 'long' | 'radio' | 'checkbox';
+type DbQuestionType = 'short' | 'long' | 'radio' | 'checkbox' | 'date' | 'symptom_picker' | 'symptom_timeline' | 'allergy_picker' | 'antecedent_picker' | 'scale';
 
 const toDbQuestionType = (type: QuestionType): DbQuestionType => {
   if (type === 'textarea') return 'long';
   if (type === 'single_choice') return 'radio';
   if (type === 'multiple_choice') return 'checkbox';
+  const richTypes = ['date', 'symptom_picker', 'symptom_timeline', 'allergy_picker', 'antecedent_picker', 'scale'] as const;
+  if ((richTypes as readonly string[]).includes(type)) return type as DbQuestionType;
   return 'short';
 };
 
@@ -35,7 +37,9 @@ const toClientQuestionType = (type: DbQuestionType): QuestionType => {
   if (type === 'long') return 'textarea';
   if (type === 'radio') return 'single_choice';
   if (type === 'checkbox') return 'multiple_choice';
-  return 'text';
+  if (type === 'short') return 'text';
+  // Rich types and 'date' pass through
+  return type as QuestionType;
 };
 
 const normalizeQuestion = (question: Question): Question => ({
@@ -55,31 +59,10 @@ const loadTemplateQuestions = async (formTemplateId: string | null): Promise<Que
     .from(formTemplates)
     .where(eq(formTemplates.id, formTemplateId))
     .limit(1);
-  const fallbackQuestions = template?.questions?.length ? template.questions.map(normalizeQuestion) : DEFAULT_QUESTIONS;
-
-  const [templateDiagnosis] = await db.query.diagnosis.findMany({
-    where: and(eq(diagnosis.formTemplateId, formTemplateId), eq(diagnosis.status, 'template')),
-    with: {
-      questions: {
-        with: {
-          propositions: true,
-        },
-      },
-    },
-    limit: 1,
-  });
-
-  if (templateDiagnosis?.questions?.length) {
-    return templateDiagnosis.questions.map((question, index) => ({
-      id: question.id,
-      type: fallbackQuestions[index]?.type ?? toClientQuestionType(question.type as DbQuestionType),
-      label: question.question,
-      required: Boolean(question.required),
-      options: question.propositions?.map((proposition) => proposition.proposition) ?? [],
-    }));
-  }
-
-  return fallbackQuestions;
+  const rawQuestions = (template?.questions?.length ? template.questions : DEFAULT_QUESTIONS) as Question[];
+  // Return ALL questions including step_breaks — step_breaks are used for frontend step structure
+  // They are filtered out before any DB insert (see ensureSessionResponse)
+  return rawQuestions.map(q => normalizeQuestion(q));
 };
 
 type SessionQuestion = Question & {
@@ -118,6 +101,22 @@ const loadPersistedSessionQuestions = async (diagnosisId: string): Promise<Sessi
   });
 };
 
+// Re-inserts step_break entries (from the template) into the list of persisted DB questions.
+// DB only contains real questions (step_breaks are never persisted).
+// Walk the template in order: emit step_breaks as-is, consume dbQs one by one for real questions.
+const mergeStepBreaks = (templateQs: Question[], dbQs: SessionQuestion[]): SessionQuestion[] => {
+  const result: SessionQuestion[] = [];
+  let dbIdx = 0;
+  for (const tq of templateQs) {
+    if (tq.type === 'step_break') {
+      result.push({ id: tq.id, type: 'step_break', label: tq.label, required: false, options: [] });
+    } else if (dbIdx < dbQs.length) {
+      result.push(dbQs[dbIdx++]);
+    }
+  }
+  return result;
+};
+
 const ensureSessionResponse = async (
   session: {
     id: string;
@@ -125,6 +124,11 @@ const ensureSessionResponse = async (
     formTemplateId: string | null;
   },
 ): Promise<{ diagnosisId: string; responseId: string; questions: SessionQuestion[] }> => {
+  // Load ALL template questions including step_breaks (for step structure)
+  const allTemplateQuestions = await loadTemplateQuestions(session.formTemplateId);
+  // Only non-step_break questions go into the DB
+  const dbTemplateQuestions = allTemplateQuestions.filter(q => q.type !== 'step_break');
+
   const [existingDiagnosis] = await db.select({ id: diagnosis.id })
     .from(diagnosis)
     .where(and(eq(diagnosis.sessionId, session.id), eq(diagnosis.status, 'pending_response')))
@@ -142,14 +146,17 @@ const ensureSessionResponse = async (
       }).returning({ id: response_table.id });
     }
 
+    const dbQs = await loadPersistedSessionQuestions(existingDiagnosis.id);
+    // dbQs may have extra rows if session was created with old code that stored step_breaks.
+    // Trim to expected count to stay aligned with template positions.
+    const trimmedDbQs = dbQs.slice(0, dbTemplateQuestions.length);
+
     return {
       diagnosisId: existingDiagnosis.id,
       responseId: existingResponse.id,
-      questions: await loadPersistedSessionQuestions(existingDiagnosis.id),
+      questions: mergeStepBreaks(allTemplateQuestions, trimmedDbQs),
     };
   }
-
-  const templateQuestions = await loadTemplateQuestions(session.formTemplateId);
 
   const created = await db.transaction(async (tx) => {
     const [createdDiagnosis] = await tx.insert(diagnosis).values({
@@ -159,7 +166,8 @@ const ensureSessionResponse = async (
       status: 'pending_response',
     }).returning({ id: diagnosis.id });
 
-    const normalizedQuestions = templateQuestions.map(normalizeQuestion);
+    // Insert only real questions — step_breaks are frontend-only
+    const normalizedQuestions = dbTemplateQuestions.map(normalizeQuestion);
     const createdQuestions = normalizedQuestions.length
       ? await tx.insert(diagnosis_question_table).values(
         normalizedQuestions.map((question) => ({
@@ -197,9 +205,10 @@ const ensureSessionResponse = async (
     };
   });
 
+  const dbQs = await loadPersistedSessionQuestions(created.diagnosisId);
   return {
     ...created,
-    questions: await loadPersistedSessionQuestions(created.diagnosisId),
+    questions: mergeStepBreaks(allTemplateQuestions, dbQs),
   };
 };
 
@@ -407,7 +416,7 @@ sessionsRouter.post('/:token/respond', async (req, res: Response): Promise<any> 
     if (session.status === 'completed') return res.status(409).json({ error: 'Déjà soumis' });
 
     const data = req.body;
-    const questions = await loadTemplateQuestions(session.formTemplateId);
+    const questions = (await loadTemplateQuestions(session.formTemplateId)).filter(q => q.type !== 'step_break');
     const answers = (data.answers ?? {}) as Record<string, string | string[]>;
     const nir: string | null = data.nir?.trim() || null;
 

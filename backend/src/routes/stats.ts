@@ -64,20 +64,17 @@ statsRouter.get('/', authenticateToken, async (req: AuthRequest, res: Response):
 
     const avgCompletionMinutes = timeRow?.avgMinutes ?? null;
 
-    // 3. Répartition des priorités
-    const priorityRows = await db
-      .select({
-        level: diagnosis.triageLevel,
-        count: sql<number>`COUNT(*)::int`,
-      })
-      .from(diagnosis)
-      .where(
-        and(
-          eq(diagnosis.doctorId, doctorId),
-          isNotNull(diagnosis.triageLevel),
-        ),
-      )
-      .groupBy(diagnosis.triageLevel);
+    // 3. Répartition des priorités (source : synthèse IA uniquement)
+    const priorityRows = await db.execute(
+      sql`
+        SELECT ai_synthesis->>'niveau_priorite' AS level, COUNT(*)::int AS count
+        FROM formulaires
+        WHERE doctor_id = ${doctorId}
+          AND ai_synthesis IS NOT NULL
+          AND ai_synthesis->>'niveau_priorite' IS NOT NULL
+        GROUP BY ai_synthesis->>'niveau_priorite'
+      `,
+    ) as { level: string; count: number }[];
 
     const priorityDistribution: Record<string, number> = {
       non_urgent: 0,

@@ -5,6 +5,7 @@ import jwt from 'jsonwebtoken';
 import { db } from '../db';
 import {
   aiSynthesisVersions,
+  children,
   diagnosis,
   diagnosis_question_table,
   patientSessions,
@@ -59,6 +60,7 @@ const drawSectionSeparator = (doc: PDFDocumentType, color: string, left: number,
 
 export interface DiagnosisResponse {
   response_id: string
+  nir?: string
   responses: {
     question_id: string
     proposition_id: string | null
@@ -117,11 +119,13 @@ diagnosisRouter.post('/', async (req: Request, res: Response) => {
     const questions = await db.select({
       id: diagnosis_question_table.id,
       label: diagnosis_question_table.question,
+      type: diagnosis_question_table.type,
     })
       .from(diagnosis_question_table)
       .where(eq(diagnosis_question_table.diagnosis_id, record.id));
 
-    const labelsByQuestionId = new Map(questions.map((question) => [question.id, question.label]));
+    const labelsByQuestionId = new Map(questions.map((q) => [q.id, q.label]));
+    const typeByQuestionId = new Map(questions.map((q) => [q.id, q.type]));
     const validQuestionIds = new Set(labelsByQuestionId.keys());
     const invalidQuestion = data.responses.find((response) => !validQuestionIds.has(response.question_id));
     if (invalidQuestion) {
@@ -140,14 +144,50 @@ diagnosisRouter.post('/', async (req: Request, res: Response) => {
       return acc;
     }, {});
 
+    // Build label-keyed version for doctor dashboard display
+    const labeledCustomAnswers: Record<string, string | string[]> = {};
+    for (const [questionId, value] of Object.entries(customAnswers)) {
+      const label = labelsByQuestionId.get(questionId);
+      if (label) labeledCustomAnswers[label] = value;
+    }
+
+    // Extract structured fields from rich question types
+    const getAnswerByType = (type: string): string | string[] | undefined => {
+      const q = questions.find((q) => q.type === type);
+      return q ? customAnswers[q.id] : undefined;
+    };
+
+    const symptomPickerAnswer = getAnswerByType('symptom_picker');
+    const symptoms = Array.isArray(symptomPickerAnswer) ? symptomPickerAnswer : [];
+
+    const timelineRaw = getAnswerByType('symptom_timeline');
+    let symptomTimeline: Record<string, string> = {};
+    if (typeof timelineRaw === 'string') {
+      try { symptomTimeline = JSON.parse(timelineRaw); } catch {}
+    }
+
+    const allergyAnswer = getAnswerByType('allergy_picker');
+    const allergies = Array.isArray(allergyAnswer) ? allergyAnswer : allergyAnswer ? [allergyAnswer] : [];
+
+    const antecedentAnswer = getAnswerByType('antecedent_picker');
+    const antecedents = Array.isArray(antecedentAnswer) ? antecedentAnswer : antecedentAnswer ? [antecedentAnswer] : [];
+
+    const scaleAnswer = getAnswerByType('scale');
+    const worryFromScale = typeof scaleAnswer === 'string' ? scaleAnswer : null;
+
     const childBirthDate = getAnswerByLabel(customAnswers, labelsByQuestionId, /naissance/i) || 'N/A';
     const triage = computeTriageScore({
-      clinicalSigns: getArrayAnswerByLabel(customAnswers, labelsByQuestionId, /signes cliniques/i),
+      clinicalSigns: symptoms.length > 0 ? symptoms : getArrayAnswerByLabel(customAnswers, labelsByQuestionId, /signes cliniques/i),
       behaviorChanges: getArrayAnswerByLabel(customAnswers, labelsByQuestionId, /comportement/i),
-      worryLevel: getAnswerByLabel(customAnswers, labelsByQuestionId, /inquiétude/i),
-      duration: getAnswerByLabel(customAnswers, labelsByQuestionId, /combien de temps|durée|depuis/i),
+      worryLevel: worryFromScale ?? getAnswerByLabel(customAnswers, labelsByQuestionId, /inquiétude/i),
+      duration: Object.keys(symptomTimeline).length > 0
+        ? Object.values(symptomTimeline)[0]
+        : getAnswerByLabel(customAnswers, labelsByQuestionId, /combien de temps|durée|depuis/i),
       childBirthDate,
     });
+
+    // Suppress unused variable warning — typeByQuestionId is available for future use
+    void typeByQuestionId;
 
     await db.transaction(async tx => {
       await tx.update(response_table)
@@ -168,22 +208,59 @@ diagnosisRouter.post('/', async (req: Request, res: Response) => {
         await tx.insert(response_to_question_table).values(responseRows).returning();
       }
 
+      const childFirstName = getAnswerByLabel(customAnswers, labelsByQuestionId, /prénom/i) || null;
+      const childLastName = getAnswerByLabel(customAnswers, labelsByQuestionId, /^nom/i) || null;
+
+      const genderRaw = getAnswerByLabel(customAnswers, labelsByQuestionId, /^genre$/i);
+      const genderNormalized = genderRaw === 'Fille' ? 'fille' : genderRaw === 'Garçon' ? 'garcon' : genderRaw === 'Autre' ? 'autre' : genderRaw || null;
+
+      const treatmentsRaw = getAnswerByLabel(customAnswers, labelsByQuestionId, /traitements/i) || null;
+
+      let childId: string | null = record.childId ?? null;
+      if (data.nir && record.doctorId) {
+        const nir = data.nir.trim();
+        const [existingChild] = await tx.select({ id: children.id })
+          .from(children)
+          .where(and(eq(children.nir, nir), eq(children.doctorId, record.doctorId)))
+          .limit(1);
+
+        if (existingChild) {
+          childId = existingChild.id;
+        } else {
+          const [newChild] = await tx.insert(children).values({
+            doctorId: record.doctorId,
+            nir,
+            firstName: childFirstName ?? '',
+            lastName: childLastName ?? '',
+            birthDate: childBirthDate !== 'N/A' ? childBirthDate : '',
+          }).returning({ id: children.id });
+          childId = newChild?.id ?? null;
+        }
+      }
+
       await tx.update(diagnosis)
         .set({
-          childFirstName: getAnswerByLabel(customAnswers, labelsByQuestionId, /prénom/i) || null,
-          childLastName: getAnswerByLabel(customAnswers, labelsByQuestionId, /nom/i) || null,
+          childFirstName,
+          childLastName,
           childBirthDate,
+          nir: data.nir?.trim() || null,
+          childId,
+          gender: genderNormalized,
+          treatments: treatmentsRaw,
           consultationReason: getAnswerByLabel(customAnswers, labelsByQuestionId, /motif/i) || null,
+          symptoms: symptoms.length > 0 ? symptoms : undefined,
+          symptomTimeline: Object.keys(symptomTimeline).length > 0 ? symptomTimeline : undefined,
+          allergies: allergies.length > 0 ? allergies : undefined,
+          antecedents: antecedents.length > 0 ? antecedents : undefined,
           behaviorChanges: getArrayAnswerByLabel(customAnswers, labelsByQuestionId, /comportement/i),
           clinicalSigns: getArrayAnswerByLabel(customAnswers, labelsByQuestionId, /signes cliniques/i),
           duration: getAnswerByLabel(customAnswers, labelsByQuestionId, /combien de temps|durée|depuis/i) || null,
-          worryLevel: getAnswerByLabel(customAnswers, labelsByQuestionId, /inquiétude/i) || null,
+          worryLevel: (worryFromScale ?? getAnswerByLabel(customAnswers, labelsByQuestionId, /inquiétude/i)) || null,
           actionsTaken: getArrayAnswerByLabel(customAnswers, labelsByQuestionId, /actions/i),
           additionalNotes: getAnswerByLabel(customAnswers, labelsByQuestionId, /complémentaires|message libre/i) || '',
-          customAnswers,
+          customAnswers: labeledCustomAnswers,
           status: 'new',
           triageLevel: triage.level,
-          triageScore: String(triage.score),
         })
         .where(eq(diagnosis.id, record.id));
 

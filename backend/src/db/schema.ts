@@ -31,8 +31,25 @@ export const question_type_enum = pgEnum('question_type', [
   'long',
   'radio',
   'checkbox',
+  'date',
+  'symptom_picker',
+  'symptom_timeline',
+  'allergy_picker',
+  'antecedent_picker',
+  'scale',
 ])
-export type QuestionType = 'text' | 'textarea' | 'date' | 'single_choice' | 'multiple_choice';
+export type QuestionType =
+  | 'text'
+  | 'textarea'
+  | 'date'
+  | 'single_choice'
+  | 'multiple_choice'
+  | 'symptom_picker'
+  | 'symptom_timeline'
+  | 'allergy_picker'
+  | 'antecedent_picker'
+  | 'scale'
+  | 'step_break';
 
 export interface Question {
   id: string;
