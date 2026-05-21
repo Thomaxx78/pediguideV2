@@ -4,7 +4,6 @@ import { useRouter } from 'vue-router'
 import { Input } from '@/components/ui/input'
 import DoctorFormsTable from '@/components/doctor/DoctorFormsTable.vue'
 import CreateSessionModal from '@/components/doctor/CreateSessionModal.vue'
-import DashboardStats from '@/components/doctor/DashboardStats.vue'
 import { doctorFormsApi, type DoctorFormSummary } from '@/services/doctorFormsApi'
 
 const router = useRouter()
@@ -80,16 +79,13 @@ onMounted(() => {
       <CreateSessionModal @created="loadForms" />
     </header>
 
-    <!-- Stats -->
-    <DashboardStats />
-
     <!-- Nav -->
     <div class="flex gap-3">
       <button
         class="inline-flex items-center gap-2 rounded-[var(--r-md)] border border-[var(--color-line)] bg-[var(--color-surface)] px-4 py-2 text-sm font-medium text-[var(--color-ink)] transition-colors hover:bg-[var(--color-surface-2)]"
-        @click="router.push('/dashboard/patients')"
+        @click="router.push('/dashboard/stats')"
       >
-        Dossiers patients
+        Statistiques
       </button>
     </div>
 

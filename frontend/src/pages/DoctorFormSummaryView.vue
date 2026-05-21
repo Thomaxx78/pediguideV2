@@ -479,8 +479,16 @@ const formatAppointment = (value: string | null) => {
             <dd class="mt-1 text-[15px] text-[var(--color-ink)]">{{ form.patientFirstName || 'Non renseigné' }}</dd>
           </div>
           <div>
+            <dt class="text-[11px] font-medium uppercase tracking-wide text-[var(--color-muted-strong)]">Nom</dt>
+            <dd class="mt-1 text-[15px] text-[var(--color-ink)]">{{ form.patientLastName || 'Non renseigné' }}</dd>
+          </div>
+          <div>
             <dt class="text-[11px] font-medium uppercase tracking-wide text-[var(--color-muted-strong)]">Date de naissance</dt>
             <dd class="mt-1 text-[15px] text-[var(--color-ink)]">{{ formatBirthDate(form.childBirthDate) }}</dd>
+          </div>
+          <div v-if="form.nir">
+            <dt class="text-[11px] font-medium uppercase tracking-wide text-[var(--color-muted-strong)]">N° Sécurité sociale</dt>
+            <dd class="mt-1 font-mono text-[15px] tracking-wide text-[var(--color-ink)]">{{ form.nir }}</dd>
           </div>
           <div v-if="form.weight">
             <dt class="text-[11px] font-medium uppercase tracking-wide text-[var(--color-muted-strong)]">Poids</dt>
@@ -584,28 +592,12 @@ const formatAppointment = (value: string | null) => {
         </div>
 
         <!-- Worry + photo + notes -->
-        <div v-if="form.worry || form.photoName || form.additionalNotes" class="mt-7 space-y-5 border-t border-[var(--color-line)] pt-6">
+        <div v-if="form.worry || form.additionalNotes" class="mt-7 space-y-5 border-t border-[var(--color-line)] pt-6">
           <div v-if="form.worry">
             <h3 class="text-[11px] font-medium uppercase tracking-wide text-[var(--color-muted-strong)]">
               Inquiétude principale
             </h3>
             <p class="mt-2 text-[14.5px] italic text-[var(--color-ink-2)]">« {{ form.worry }} »</p>
-          </div>
-          <div v-if="form.photoName">
-            <h3 class="text-[11px] font-medium uppercase tracking-wide text-[var(--color-muted-strong)]">
-              Photo jointe
-            </h3>
-            <p class="mt-2 inline-flex items-center gap-2 rounded-[var(--r-sm)] border border-[var(--color-line)] bg-[var(--color-surface-2)] px-3 py-1.5 text-[13px] text-[var(--color-ink-2)]">
-              <svg viewBox="0 0 16 16" class="size-3.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
-                <rect x="2" y="3" width="12" height="10" rx="1.5" />
-                <circle cx="6" cy="7" r="1.5" />
-                <path d="M2 11l3.5-3 5 4" />
-              </svg>
-              {{ form.photoName }}
-            </p>
-            <p class="mt-1 text-[11.5px] text-[var(--color-muted-strong)]">
-              La pièce jointe n'est pas encore stockée sur le serveur (v1 — nom du fichier uniquement).
-            </p>
           </div>
           <div v-if="form.additionalNotes">
             <h3 class="text-[11px] font-medium uppercase tracking-wide text-[var(--color-muted-strong)]">

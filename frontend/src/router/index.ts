@@ -39,7 +39,13 @@ const router = createRouter({
       path: '/form/:token',
       name: 'patient-form',
       component: () => import('@/pages/PatientFormView.vue'),
-      meta: { layout: 'main' },
+      meta: { layout: 'parent' },
+    },
+    {
+      path: '/dashboard/stats',
+      name: 'stats',
+      component: () => import('@/pages/StatsView.vue'),
+      meta: { layout: 'main', requiresAuth: true },
     },
     {
       path: '/dashboard/formulaires',

@@ -65,6 +65,7 @@ export interface DiagnosisRecord {
   worry?: string | null
   photoName?: string | null
 
+  nir?: string | null
   status?: string | null
   aiSynthesis?: AiSynthesis | null
   aiSynthesisVersions?: AiSynthesisVersion[]
@@ -129,6 +130,7 @@ export interface DoctorFormDetail extends DoctorFormSummary {
   worry: string
   photoName: string
 
+  nir: string
   aiSynthesis: AiSynthesis | null
   aiSynthesisVersions: AiSynthesisVersion[]
   isLegacy: boolean
@@ -211,6 +213,7 @@ const toDetail = (record: DiagnosisRecord): DoctorFormDetail => ({
   worry: record.worry ?? '',
   photoName: record.photoName ?? '',
 
+  nir: record.nir ?? '',
   aiSynthesis: record.aiSynthesis ?? null,
   aiSynthesisVersions: record.aiSynthesisVersions ?? [],
   isLegacy: isLegacyRecord(record),

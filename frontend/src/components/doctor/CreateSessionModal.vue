@@ -32,8 +32,12 @@ const loadTemplates = async () => {
     const token = localStorage.getItem('authToken')
     const res = await fetch(`${API_BASE_URL}/templates`, { headers: { Authorization: `Bearer ${token}` } })
     templates.value = await res.json()
+    // Auto-select if only one template
+    if (templates.value.length === 1 && templates.value[0]) {
+      selectedTemplateId.value = templates.value[0].id
+    }
   } catch {
-    /* ignore — templates list is optional */
+    /* ignore */
   }
 }
 
@@ -44,8 +48,7 @@ const emailSent = ref(false)
 
 const linkTokenPart = computed(() => {
   if (!generatedUrl.value) return ''
-  // Show just the token portion (e.g. /form/t1-LEAB7K2Z9F)
-  const match = generatedUrl.value.match(/\/form\/([^/?#]+)/)
+  const match = generatedUrl.value.match(/\/(?:form|pre-consultation)\/([^/?#]+)/)
   return match ? match[1] : generatedUrl.value
 })
 
@@ -201,13 +204,20 @@ const onKeydown = (event: KeyboardEvent) => {
               </Field>
 
               <Field>
-                <FieldLabel for="template-select">Questionnaire</FieldLabel>
+                <FieldLabel for="template-select" required>Questionnaire</FieldLabel>
+                <div v-if="templates.length === 0" class="rounded-[var(--r-sm)] border border-dashed border-[var(--color-line-2)] bg-[var(--color-surface-2)] px-3 py-2.5 text-sm text-[var(--color-ink-2)]">
+                  Aucun modèle disponible —
+                  <a href="/dashboard/formulaires/nouveau?from=default" target="_blank" class="font-medium text-primary underline-offset-2 hover:underline">
+                    créez votre formulaire par défaut
+                  </a>
+                </div>
                 <select
+                  v-else
                   id="template-select"
                   v-model="selectedTemplateId"
                   class="h-10 w-full rounded-[var(--r-sm)] border border-[var(--color-line-2)] bg-[var(--color-surface)] px-3 text-sm text-[var(--color-ink)] outline-none transition-[border-color,box-shadow] focus-visible:border-primary focus-visible:shadow-[var(--shadow-input-focus)]"
                 >
-                  <option :value="null">Questionnaire standard (par défaut)</option>
+                  <option :value="null" disabled>— Choisir un modèle —</option>
                   <option v-for="t in templates" :key="t.id" :value="t.id">{{ t.title }}</option>
                 </select>
               </Field>
@@ -221,7 +231,7 @@ const onKeydown = (event: KeyboardEvent) => {
               </p>
               <div class="flex w-full flex-col-reverse gap-2.5 sm:w-auto sm:flex-row sm:items-center">
                 <Button variant="secondary" size="md" :block="true" class="sm:w-auto" @click="close">Annuler</Button>
-                <Button size="md" :block="true" class="sm:w-auto" :disabled="isLoading" @click="createSession">
+                <Button size="md" :block="true" class="sm:w-auto" :disabled="isLoading || templates.length === 0 || !selectedTemplateId" @click="createSession">
                   {{ isLoading ? 'Création…' : 'Générer le lien' }}
                 </Button>
               </div>

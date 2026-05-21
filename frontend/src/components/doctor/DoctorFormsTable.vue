@@ -36,10 +36,10 @@ const formatDate = (value: string) => {
   }).format(date)
 }
 
-const priorityConfig = {
-  non_urgent: { label: 'Non urgent', dot: 'bg-[var(--color-sev-1)]' },
-  a_surveiller: { label: 'À surveiller', dot: 'bg-[var(--color-sev-3)]' },
-  urgent: { label: 'Urgent', dot: 'bg-[var(--color-sev-5)]' },
+const aiPriorityConfig = {
+  non_urgent:   { label: 'Non urgent',   badge: 'bg-emerald-100 text-emerald-700', dot: 'bg-emerald-500' },
+  a_surveiller: { label: 'À surveiller', badge: 'bg-orange-100 text-orange-700',   dot: 'bg-orange-500' },
+  urgent:       { label: 'Urgent',       badge: 'bg-red-100 text-red-700',         dot: 'bg-red-500' },
 } as const
 
 const statusConfig = {
@@ -129,17 +129,18 @@ const handleRowKeydown = (event: KeyboardEvent, form: { id: string; isSessionOnl
         @keydown="handleRowKeydown($event, form)"
       >
         <header class="flex items-start justify-between gap-3">
-          <div class="flex items-center gap-2">
-            <span
-              v-if="form.aiPriority"
-              aria-hidden="true"
-              :class="['inline-block size-2 rounded-full', priorityConfig[form.aiPriority].dot]"
-              :title="priorityConfig[form.aiPriority].label"
-            ></span>
+          <div>
             <p class="text-[15px] font-medium text-[var(--color-ink)]">
               {{ form.patientFirstName || form.patientEmail || 'Patient' }}
               <span v-if="form.patientLastName" class="text-[var(--color-ink-2)]">{{ form.patientLastName }}</span>
             </p>
+            <span
+              v-if="form.aiPriority"
+              :class="['mt-1 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium', aiPriorityConfig[form.aiPriority].badge]"
+            >
+              <span :class="['h-1.5 w-1.5 rounded-full', aiPriorityConfig[form.aiPriority].dot]" aria-hidden="true" />
+              {{ aiPriorityConfig[form.aiPriority].label }}
+            </span>
           </div>
           <RouterLink
             v-if="!form.isSessionOnly"
@@ -183,7 +184,7 @@ const handleRowKeydown = (event: KeyboardEvent, form: { id: string; isSessionOnl
               Statut
             </th>
             <th scope="col" class="px-6 py-3 text-[11px] font-medium uppercase tracking-wide text-[var(--color-muted-strong)]">
-              Triage
+              Priorité
             </th>
             <th scope="col" class="px-6 py-3 text-[11px] font-medium uppercase tracking-wide text-[var(--color-muted-strong)]">
               Date
@@ -214,12 +215,6 @@ const handleRowKeydown = (event: KeyboardEvent, form: { id: string; isSessionOnl
           >
             <td class="px-6 py-4 text-[var(--color-ink)]">
               <span class="flex items-center gap-2">
-                <span
-                  v-if="form.aiPriority"
-                  aria-hidden="true"
-                  :class="['inline-block size-2 rounded-full', priorityConfig[form.aiPriority].dot]"
-                  :title="priorityConfig[form.aiPriority].label"
-                ></span>
                 <span class="font-medium">{{ form.patientFirstName || form.patientEmail || 'Patient' }}</span>
                 <span v-if="form.patientLastName" class="text-[var(--color-ink-2)]">
                   {{ form.patientLastName }}
@@ -230,35 +225,17 @@ const handleRowKeydown = (event: KeyboardEvent, form: { id: string; isSessionOnl
               <span
                 :class="['inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[11.5px] font-medium', statusConfig[form.displayStatus].classes]"
               >
-                <span
-                  :class="['h-1.5 w-1.5 rounded-full', statusConfig[form.displayStatus].dot]"
-                  aria-hidden="true"
-                />
+                <span :class="['h-1.5 w-1.5 rounded-full', statusConfig[form.displayStatus].dot]" aria-hidden="true" />
                 {{ statusConfig[form.displayStatus].label }}
               </span>
             </td>
             <td class="px-6 py-4">
               <span
-                v-if="form.triageLevel"
-                class="inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[11.5px] font-medium"
-                :class="{
-                  'bg-red-100 text-red-700': form.triageLevel === 'rouge',
-                  'bg-orange-100 text-orange-700': form.triageLevel === 'orange',
-                  'bg-yellow-100 text-yellow-700': form.triageLevel === 'jaune',
-                  'bg-emerald-100 text-emerald-700': form.triageLevel === 'vert',
-                }"
+                v-if="form.aiPriority"
+                :class="['inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[11.5px] font-medium', aiPriorityConfig[form.aiPriority].badge]"
               >
-                <span
-                  class="h-1.5 w-1.5 rounded-full"
-                  :class="{
-                    'bg-red-500': form.triageLevel === 'rouge',
-                    'bg-orange-500': form.triageLevel === 'orange',
-                    'bg-yellow-500': form.triageLevel === 'jaune',
-                    'bg-emerald-500': form.triageLevel === 'vert',
-                  }"
-                  aria-hidden="true"
-                />
-                {{ form.triageLevel.charAt(0).toUpperCase() + form.triageLevel.slice(1) }}
+                <span :class="['h-1.5 w-1.5 rounded-full', aiPriorityConfig[form.aiPriority].dot]" aria-hidden="true" />
+                {{ aiPriorityConfig[form.aiPriority].label }}
               </span>
               <span v-else class="text-[11.5px] text-[var(--color-muted-strong)]">—</span>
             </td>
