@@ -43,11 +43,12 @@ onMounted(async () => {
 })
 
 const startQuestionnaire = () => {
-  if (!token.value) return
-  if (hasCustomTemplate.value) {
+  if (token.value && hasCustomTemplate.value) {
     router.push(`/form/${token.value}`)
-  } else {
+  } else if (token.value) {
     router.push({ name: 'diagnosis', query: { token: token.value } })
+  } else {
+    router.push({ name: 'diagnosis' })
   }
 }
 </script>
