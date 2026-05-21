@@ -74,8 +74,9 @@ const pieSlices = computed((): PieSlice[] => {
   const total = syms.reduce((s, sym) => s + sym.count, 0)
   if (total === 0) return []
 
-  if (syms.length === 1) {
-    return [{ id: syms[0].id, label: syms[0].label, count: syms[0].count, pct: 100, color: PIE_COLORS[0], isFullCircle: true, path: '' }]
+  const first = syms[0]
+  if (syms.length === 1 && first) {
+    return [{ id: first.id, label: first.label, count: first.count, pct: 100, color: PIE_COLORS[0]!, isFullCircle: true, path: '' }]
   }
 
   const r = 42, cx = 50, cy = 50
@@ -91,7 +92,7 @@ const pieSlices = computed((): PieSlice[] => {
     const largeArc = frac > 0.5 ? 1 : 0
     const path = `M${cx} ${cy} L${x1.toFixed(2)} ${y1.toFixed(2)} A${r} ${r} 0 ${largeArc} 1 ${x2.toFixed(2)} ${y2.toFixed(2)}Z`
     startAngle = endAngle
-    return { id: sym.id, label: sym.label, count: sym.count, pct: Math.round(frac * 100), color: PIE_COLORS[i % PIE_COLORS.length], isFullCircle: false, path }
+    return { id: sym.id, label: sym.label, count: sym.count, pct: Math.round(frac * 100), color: PIE_COLORS[i % PIE_COLORS.length]!, isFullCircle: false, path }
   })
 })
 
@@ -213,7 +214,7 @@ const formatTime = (minutes: number | null) => {
           <svg viewBox="0 0 100 100" class="w-32 shrink-0" aria-hidden="true">
             <!-- Single symptom → full circle -->
             <circle
-              v-if="pieSlices.length === 1"
+              v-if="pieSlices.length === 1 && pieSlices[0]"
               cx="50" cy="50" r="42"
               :fill="pieSlices[0].color"
             />
