@@ -30,8 +30,7 @@ const priorityItems = computed(() => {
 })
 
 const maxSymptomCount = computed(() => {
-  if (!stats.value?.topSymptoms.length) return 1
-  return stats.value.topSymptoms[0].count
+  return stats.value?.topSymptoms[0]?.count ?? 1
 })
 
 const formatTime = (minutes: number | null) => {
